@@ -1,0 +1,11 @@
+# Root-level ignores. Frontend build artifacts are ignored by FE/.gitignore;
+# backend tooling should add its own ignores under BE/ when it lands.
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs
+*.log
