@@ -33,12 +33,30 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
   final String baseUrl;
   final http.Client _client;
 
-  HttpTeamRemoteDataSource({required this.baseUrl, http.Client? client})
-      : _client = client ?? http.Client();
+  /// Supplies the current bearer token (from the auth controller). Every team
+  /// route is JWT-protected, so the token is attached when present.
+  final String? Function()? _tokenProvider;
+
+  HttpTeamRemoteDataSource({
+    required this.baseUrl,
+    http.Client? client,
+    String? Function()? tokenProvider,
+  })  : _client = client ?? http.Client(),
+        _tokenProvider = tokenProvider;
 
   Uri _uri(String path) => Uri.parse('$baseUrl$path');
 
-  Map<String, String> get _jsonHeaders => const {'Content-Type': 'application/json'};
+  /// Request headers, optionally JSON, always carrying the bearer token if one
+  /// is available.
+  Map<String, String> _headers({bool json = false}) {
+    final token = _tokenProvider?.call();
+    return {
+      if (json) 'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  Map<String, String> get _jsonHeaders => _headers(json: true);
 
   @override
   Future<List<Team>> fetchTeams() async {
@@ -71,6 +89,7 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
     String? note,
   }) async {
     final req = http.MultipartRequest('POST', _uri('/api/v1/teams/$teamId/record'))
+      ..headers.addAll(_headers())
       ..fields['track_id'] = trackId
       ..fields['sync_offset_ms'] = '$syncOffsetMs'
       ..fields['member_id'] = member.id
@@ -92,7 +111,7 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
 
   Future<String> _get(String path) async {
     try {
-      final res = await _client.get(_uri(path));
+      final res = await _client.get(_uri(path), headers: _headers());
       _ensureOk(res.statusCode, res.body);
       return res.body;
     } on AppException {

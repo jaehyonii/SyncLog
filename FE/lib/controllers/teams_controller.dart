@@ -12,12 +12,22 @@ import '../util/async_value.dart';
 /// everywhere (home list, detail, timeline) without manual plumbing.
 class TeamsController extends ChangeNotifier {
   final TeamRepository _repo;
-  final Person currentUser;
+
+  /// The signed-in user, used to attribute created teams and uploaded takes.
+  /// Updated by [setCurrentUser] when auth state changes (login/logout).
+  Person currentUser;
 
   AsyncValue<List<Team>> _teams = const AsyncLoading();
   AsyncValue<List<Team>> get teams => _teams;
 
   TeamsController(this._repo, {required this.currentUser});
+
+  /// Point attribution at a newly signed-in user. No-op if unchanged.
+  void setCurrentUser(Person user) {
+    if (currentUser.id == user.id && currentUser.name == user.name) return;
+    currentUser = user;
+    notifyListeners();
+  }
 
   Team? teamById(String id) =>
       _teams.valueOrNull?.firstWhereOrNull((t) => t.id == id);

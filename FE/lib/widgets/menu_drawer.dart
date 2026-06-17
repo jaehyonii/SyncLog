@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../controllers/auth_controller.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import 'pressable.dart';
@@ -26,9 +28,18 @@ class MenuDrawer extends StatelessWidget {
     _MenuItem(SLIcons.settings, '설정', sub: '카메라 · 알림 · 계정'),
   ];
 
-  Widget _row(BuildContext context, _MenuItem it) {
+  /// Sign out, then let the router's redirect carry the user to /login. The
+  /// controller is captured before popping the drawer so the read survives the
+  /// dismissed subtree.
+  Future<void> _logout(BuildContext context) async {
+    final auth = context.read<AuthController>();
+    Navigator.of(context).pop();
+    await auth.logOut();
+  }
+
+  Widget _row(BuildContext context, _MenuItem it, {VoidCallback? onTap}) {
     return Pressable(
-      onTap: () => Navigator.of(context).pop(),
+      onTap: onTap ?? () => Navigator.of(context).pop(),
       semanticLabel: it.label,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
@@ -99,7 +110,8 @@ class MenuDrawer extends StatelessWidget {
                 child: Column(
                   children: [
                     _row(context, const _MenuItem(SLIcons.helpCircle, '도움말')),
-                    _row(context, const _MenuItem(SLIcons.logOut, '로그아웃', danger: true)),
+                    _row(context, const _MenuItem(SLIcons.logOut, '로그아웃', danger: true),
+                        onTap: () => _logout(context)),
                   ],
                 ),
               ),

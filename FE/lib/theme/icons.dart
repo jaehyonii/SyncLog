@@ -44,6 +44,12 @@ class SLIcons {
   static const piano = Icons.piano;
   static const audioLines = Icons.graphic_eq;
 
+  // auth / forms
+  static const mail = Icons.mail_outline;
+  static const lock = Icons.lock_outline;
+  static const eye = Icons.visibility_outlined;
+  static const eyeOff = Icons.visibility_off_outlined;
+
   // drawer
   static const listMusic = Icons.queue_music;
   static const archive = Icons.archive_outlined;

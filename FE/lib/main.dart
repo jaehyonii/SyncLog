@@ -3,7 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'config.dart';
+import 'controllers/auth_controller.dart';
 import 'controllers/teams_controller.dart';
+import 'data/datasources/auth_local_datasource.dart';
+import 'data/datasources/auth_remote_datasource.dart';
 import 'data/datasources/team_local_datasource.dart';
 import 'data/datasources/team_remote_datasource.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -15,16 +18,36 @@ Future<void> main() async {
   // ---- Composition root: wire config → data sources → repository → state ----
   final config = AppConfig.fromEnvironment();
   final prefs = await SharedPreferences.getInstance();
-  final session = Session.local();
+
+  // Auth: when a backend is configured, sign-up/log-in hit the API and we cache
+  // its JWT; otherwise auth is on-device. Restore any persisted session
+  // synchronously so the first route is decided without a logged-out flash.
+  final authController = AuthController(
+    AuthLocalDataSource(prefs),
+    remote: config.useRemote
+        ? HttpAuthRemoteDataSource(baseUrl: config.apiBaseUrl)
+        : null,
+  )..restore();
 
   final local = TeamLocalDataSource(prefs);
   final remote = config.useRemote
-      ? HttpTeamRemoteDataSource(baseUrl: config.apiBaseUrl)
+      ? HttpTeamRemoteDataSource(
+          baseUrl: config.apiBaseUrl,
+          // Attach the signed-in user's bearer token to every team request.
+          tokenProvider: () => authController.token,
+        )
       : null;
   final repository = TeamRepositoryImpl(local: local, remote: remote);
 
-  final teamsController = TeamsController(repository, currentUser: session.currentUser)
-    ..load();
+  // Until a user signs in, fall back to the default local profile (also keeps
+  // seed data attribution stable); app.dart re-points this on login.
+  final teamsController = TeamsController(
+    repository,
+    currentUser: authController.currentUser ?? Session.local().currentUser,
+  )..load();
 
-  runApp(SyncLogApp(teamsController: teamsController));
+  runApp(SyncLogApp(
+    authController: authController,
+    teamsController: teamsController,
+  ));
 }

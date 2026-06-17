@@ -1,12 +1,15 @@
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'controllers/auth_controller.dart';
 import 'controllers/recording_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'domain/entities/recorded_take.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/recording_screen.dart';
+import 'screens/signup_screen.dart';
 import 'screens/sync_editor_screen.dart';
 import 'screens/team_detail_screen.dart';
 import 'services/metronome_audio.dart';
@@ -23,10 +26,33 @@ class SyncEditorArgs {
 
 /// App routes. The record → micro-sync → archive sub-flow lives under a team,
 /// so committing a take returns cleanly to that team's detail screen.
-GoRouter buildRouter() {
+///
+/// Auth gates everything: [auth] drives a redirect that bounces signed-out
+/// users to `/login` and keeps signed-in users out of the auth screens. The
+/// router refreshes whenever [auth] notifies, so logging in/out re-evaluates
+/// the redirect and moves the user automatically.
+GoRouter buildRouter(AuthController auth) {
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: auth,
+    redirect: (context, state) {
+      // Wait for the (synchronous) session restore before deciding.
+      if (auth.status == AuthStatus.unknown) return null;
+      final atAuthScreen =
+          state.matchedLocation == '/login' || state.matchedLocation == '/signup';
+      if (!auth.isAuthenticated) return atAuthScreen ? null : '/login';
+      if (atAuthScreen) return '/';
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) => const SignupScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const HomeScreen(),
