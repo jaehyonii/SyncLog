@@ -17,6 +17,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEntity } from '../users/user.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
+import { JoinTeamDto } from './dto/join-team.dto';
 import { RecordTakeFields, TeamsService } from './teams.service';
 
 /** Where recorded videos land (served statically at /uploads — see main.ts). */
@@ -49,6 +50,11 @@ export class TeamsController {
   @Post()
   create(@CurrentUser() user: UserEntity, @Body() dto: CreateTeamDto) {
     return this.teams.create(user, dto);
+  }
+
+  @Post('join')
+  join(@CurrentUser() user: UserEntity, @Body() dto: JoinTeamDto) {
+    return this.teams.joinByCode(user, dto.code);
   }
 
   @Post(':id/record')

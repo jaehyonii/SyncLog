@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
+import '../controllers/teams_controller.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
+import 'join_team_sheet.dart';
 import 'pressable.dart';
 
 class _MenuItem {
@@ -24,9 +26,21 @@ class MenuDrawer extends StatelessWidget {
     _MenuItem(SLIcons.listMusic, '둘러보기', sub: '다른 팀의 합주 영상'),
     _MenuItem(SLIcons.archive, '보관함', sub: '내가 올린 take · 완성본'),
     _MenuItem(SLIcons.bell, '알림', badge: '3'),
-    _MenuItem(SLIcons.userPlus, '초대 관리', sub: '받은 초대 1개'),
     _MenuItem(SLIcons.settings, '설정', sub: '카메라 · 알림 · 계정'),
   ];
+
+  /// Open the "join by code" sheet. On success the joined team is already in the
+  /// list (the controller refreshes), so we just confirm and close the drawer.
+  Future<void> _openJoin(BuildContext context) async {
+    final teams = context.read<TeamsController>();
+    final messenger = ScaffoldMessenger.of(context);
+    final team = await JoinTeamSheet.show(context, onJoin: teams.joinTeam);
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close the drawer
+    if (team != null) {
+      messenger.showSnackBar(SnackBar(content: Text('‘${team.name}’ 팀에 참여했어요')));
+    }
+  }
 
   /// Sign out, then let the router's redirect carry the user to /login. The
   /// controller is captured before popping the drawer so the read survives the
@@ -99,7 +113,14 @@ class MenuDrawer extends StatelessWidget {
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  children: [for (final it in _items) _row(context, it)],
+                  children: [
+                    _row(
+                      context,
+                      const _MenuItem(SLIcons.userPlus, '코드로 팀 참여', sub: '초대 코드로 합주 팀 합류'),
+                      onTap: () => _openJoin(context),
+                    ),
+                    for (final it in _items) _row(context, it),
+                  ],
                 ),
               ),
               Container(

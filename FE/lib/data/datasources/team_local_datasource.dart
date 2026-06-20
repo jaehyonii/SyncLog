@@ -6,10 +6,17 @@ import '../../util/app_exception.dart';
 /// Persists the full team list locally as JSON. This is the source of truth in
 /// the app's local-first mode.
 class TeamLocalDataSource {
-  static const _key = 'synclog.teams.v1';
+  static const _baseKey = 'synclog.teams.v1';
   final SharedPreferences _prefs;
 
+  /// Scopes stored teams to a signed-in user so accounts never share a cache.
+  /// Null keeps the default (pre-login) profile's store. Pointed at the active
+  /// user by [TeamRepository.setActiveUser].
+  String? userId;
+
   TeamLocalDataSource(this._prefs);
+
+  String get _key => userId == null ? _baseKey : '$_baseKey.$userId';
 
   bool get hasData => _prefs.containsKey(_key);
 

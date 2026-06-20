@@ -45,6 +45,7 @@ interface TeamSpec {
   artist: string;
   bpm: number;
   cover: number;
+  code: string; // shareable invite code
   owner: string;
   members: string[]; // listed in roster order
   tracks: TrackSpec[];
@@ -67,6 +68,7 @@ const TEAMS: TeamSpec[] = [
     artist: '히사이시 조',
     bpm: 90,
     cover: 0xffe6ddcf,
+    code: 'MERRYGO',
     owner: 'me',
     members: ['mina', 'tae', 'me'],
     tracks: [
@@ -88,6 +90,7 @@ const TEAMS: TeamSpec[] = [
     artist: 'Mariya Takeuchi',
     bpm: 103,
     cover: 0xffd8d9d2,
+    code: 'CITYPOP',
     owner: 'soo',
     members: ['soo', 'hye', 'dan', 'me'],
     tracks: [
@@ -109,6 +112,7 @@ const TEAMS: TeamSpec[] = [
     artist: '원곡 · 단',
     bpm: 72,
     cover: 0xffdfe2dd,
+    code: 'LOFIRAIN',
     owner: 'dan',
     members: ['dan', 'me'],
     tracks: [
@@ -164,6 +168,7 @@ async function main() {
         bpm: spec.bpm,
         coverColor: String(spec.cover),
         ownerId: id[spec.owner],
+        inviteCode: spec.code,
       }),
     );
 

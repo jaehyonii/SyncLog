@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import 'pressable.dart';
@@ -49,9 +48,7 @@ class _CreateTeamSheetState extends State<CreateTeamSheet> {
   final _song = TextEditingController();
   int _count = 4;
   int _bpm = 90;
-  bool _copied = false;
   bool _submitting = false;
-  static const _link = 'synclog.app/join/4f8a2c';
 
   @override
   void dispose() {
@@ -224,13 +221,10 @@ class _CreateTeamSheetState extends State<CreateTeamSheet> {
                 onPlus: () => setState(() => _bpm = (_bpm + 1).clamp(40, 240)),
               ),
               const SizedBox(height: 18),
-              _label('초대 링크'),
               Container(
-                height: 46,
-                padding: const EdgeInsets.only(left: 14, right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: SL.surfaceMuted,
-                  border: Border.all(color: SL.border),
                   borderRadius: BorderRadius.circular(SL.radiusSm),
                 ),
                 child: Row(
@@ -238,24 +232,8 @@ class _CreateTeamSheetState extends State<CreateTeamSheet> {
                     Icon(SLIcons.link, size: 16, color: SL.textSecondary),
                     const SizedBox(width: SL.space2),
                     Expanded(
-                      child: Text(_link,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: SLType.mono(size: 13, color: SL.textSecondary)),
-                    ),
-                    SyncButton(
-                      label: _copied ? '복사됨' : '복사',
-                      variant: SLButtonVariant.soft,
-                      size: SLButtonSize.sm,
-                      icon: _copied ? SLIcons.check : SLIcons.copy,
-                      onTap: () async {
-                        await Clipboard.setData(const ClipboardData(text: _link));
-                        if (!mounted) return;
-                        setState(() => _copied = true);
-                        Future.delayed(const Duration(milliseconds: 1500), () {
-                          if (mounted) setState(() => _copied = false);
-                        });
-                      },
+                      child: Text('팀을 만들면 초대 코드가 발급돼요. 팀 화면에서 코드를 공유해 팀원을 초대하세요.',
+                          style: SLType.sans(size: 12, color: SL.textSecondary)),
                     ),
                   ],
                 ),

@@ -90,6 +90,34 @@ void main() {
     expect(teams.any((t) => t.name == '지속성 테스트'), isTrue);
   });
 
+  test('accounts do not share teams (per-user store)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repo = TeamRepositoryImpl(local: TeamLocalDataSource(prefs), now: () => clock);
+
+    // Alice signs in and creates a team.
+    repo.setActiveUser('alice');
+    await repo.createTeam(
+      name: '앨리스 밴드',
+      song: '곡',
+      bpm: 90,
+      memberCount: 2,
+      creator: SeedData.me,
+    );
+    expect((await repo.fetchTeams()).any((t) => t.name == '앨리스 밴드'), isTrue);
+
+    // Bob signs in on the same device: he must NOT see Alice's team, and a
+    // fresh signed-in account starts empty (no sample seed).
+    repo.setActiveUser('bob');
+    final bobTeams = await repo.fetchTeams();
+    expect(bobTeams.any((t) => t.name == '앨리스 밴드'), isFalse);
+    expect(bobTeams, isEmpty);
+
+    // Switching back to Alice restores her team (still scoped to her).
+    repo.setActiveUser('alice');
+    expect((await repo.fetchTeams()).any((t) => t.name == '앨리스 밴드'), isTrue);
+  });
+
   test('uploadTake throws for an unknown team', () async {
     final repo = await buildRepo();
     const take = RecordedTake(filePath: null, duration: Duration(seconds: 1), bpm: 90);

@@ -5,6 +5,11 @@ import '../entities/team.dart';
 /// The contract the app depends on for ensemble data. Implementations may be
 /// local-first (persisted on device), backed by the REST API, or both.
 abstract class TeamRepository {
+  /// Point the store at [userId] (null = the default local profile) so each
+  /// account reads and writes only its own teams. Clears any in-memory cache so
+  /// the next [fetchTeams] reloads scoped to that user.
+  void setActiveUser(String? userId);
+
   /// All teams the current user belongs to. (GET /api/v1/teams)
   Future<List<Team>> fetchTeams();
 
@@ -20,6 +25,9 @@ abstract class TeamRepository {
     required int memberCount,
     required Person creator,
   });
+
+  /// Join an existing team by its shareable invite code. (POST /teams/join)
+  Future<Team> joinTeam(String code);
 
   /// Upload a recorded take into a track with its tuned sync offset, fill the
   /// slot, and append a versioned commit. (POST /api/v1/teams/{id}/record)

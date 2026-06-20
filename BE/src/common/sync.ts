@@ -3,6 +3,19 @@
  * (`FE/lib/util/time_format.dart`) so commits the server writes carry the same
  * version tags and notes the app would have written locally.
  */
+import { randomBytes } from 'node:crypto';
+
+/**
+ * A short, human-friendly invite code (8 chars from an unambiguous alphabet —
+ * no 0/O/1/I/L). Callers must check uniqueness against existing teams.
+ */
+export function makeInviteCode(): string {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(8);
+  let code = '';
+  for (let i = 0; i < 8; i++) code += alphabet[bytes[i] % alphabet.length];
+  return code;
+}
 
 /** Bump a `vMAJOR.MINOR` tag by one minor version. Falls back to `v1.0`. */
 export function nextVersion(latest?: string | null): string {

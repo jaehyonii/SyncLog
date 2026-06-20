@@ -1,7 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { coverFor, fmtOffset, INSTRUMENT_LINEUP, nextVersion } from '../common/sync';
+import {
+  coverFor,
+  fmtOffset,
+  INSTRUMENT_LINEUP,
+  makeInviteCode,
+  nextVersion,
+} from '../common/sync';
 import { UserEntity } from '../users/user.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { CommitEntity } from './entities/commit.entity';
@@ -54,6 +60,7 @@ export class TeamsService {
       where: { id: In(ids) },
       relations: TEAM_RELATIONS,
     });
+    for (const team of teams) await this.ensureInviteCode(team); // backfill old rows
     teams.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return teams.map(teamToJson);
   }
@@ -64,7 +71,27 @@ export class TeamsService {
     if (!team || !team.members.some((m) => m.userId === userId)) {
       throw new NotFoundException('요청한 항목을 찾을 수 없어요.');
     }
+    await this.ensureInviteCode(team); // backfill teams seeded before invites
     return teamToJson(team);
+  }
+
+  /** Join a team by its shareable code, adding the user to the roster. */
+  async joinByCode(user: UserEntity, rawCode: string) {
+    const code = (rawCode ?? '').trim().toUpperCase();
+    if (!code) throw new NotFoundException('초대 코드를 확인해 주세요.');
+
+    const team = await this.teams.findOne({ where: { inviteCode: code } });
+    if (!team) throw new NotFoundException('유효하지 않은 초대 코드예요.');
+
+    const already = await this.members.findOne({
+      where: { teamId: team.id, userId: user.id },
+    });
+    if (!already) {
+      await this.members.save(
+        this.members.create({ teamId: team.id, userId: user.id }),
+      );
+    }
+    return this.getForUser(team.id, user.id);
   }
 
   async create(user: UserEntity, dto: CreateTeamDto) {
@@ -83,6 +110,7 @@ export class TeamsService {
         bpm: dto.bpm ?? 90,
         coverColor: String(dto.coverColor ?? coverFor(teamCount)),
         ownerId: user.id,
+        inviteCode: await this.uniqueInviteCode(),
       }),
     );
 
@@ -180,5 +208,23 @@ export class TeamsService {
       where: { id: teamId },
       relations: TEAM_RELATIONS,
     });
+  }
+
+  /** A fresh invite code not currently used by any team. */
+  private async uniqueInviteCode(): Promise<string> {
+    for (let i = 0; i < 10; i++) {
+      const code = makeInviteCode();
+      const clash = await this.teams.findOne({ where: { inviteCode: code } });
+      if (!clash) return code;
+    }
+    throw new Error('Could not allocate a unique invite code');
+  }
+
+  /** Give a pre-invites team a code on first access (mutates `team` in place). */
+  private async ensureInviteCode(team: TeamEntity) {
+    if (team.inviteCode) return;
+    const code = await this.uniqueInviteCode();
+    await this.teams.update(team.id, { inviteCode: code });
+    team.inviteCode = code;
   }
 }

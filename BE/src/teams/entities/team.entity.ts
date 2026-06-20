@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
@@ -38,6 +39,15 @@ export class TeamEntity {
   /** The creator; always also present in `members`. */
   @Column({ type: 'uuid' })
   ownerId: string;
+
+  /**
+   * Short shareable join code. Anyone who enters it joins the team's roster
+   * (POST /teams/join). Nullable so existing rows survive the auto-sync; new
+   * teams always get one, and old teams are backfilled on first open.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  inviteCode: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

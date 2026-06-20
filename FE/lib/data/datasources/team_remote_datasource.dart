@@ -11,6 +11,7 @@ abstract class TeamRemoteDataSource {
   Future<List<Team>> fetchTeams();
   Future<Team> fetchTeam(String teamId);
   Future<Team> createTeam(Team team);
+  Future<Team> joinTeam(String code);
   Future<Team> uploadTake({
     required String teamId,
     required String trackId,
@@ -76,6 +77,14 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
     final res = await _send(http.Request('POST', _uri('/api/v1/teams'))
       ..headers.addAll(_jsonHeaders)
       ..body = jsonEncode(team.toJson()));
+    return Team.fromJson((jsonDecode(res) as Map).cast<String, dynamic>());
+  }
+
+  @override
+  Future<Team> joinTeam(String code) async {
+    final res = await _send(http.Request('POST', _uri('/api/v1/teams/join'))
+      ..headers.addAll(_jsonHeaders)
+      ..body = jsonEncode({'code': code}));
     return Team.fromJson((jsonDecode(res) as Map).cast<String, dynamic>());
   }
 

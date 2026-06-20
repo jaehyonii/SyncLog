@@ -18,6 +18,10 @@ class Team {
   final List<Track> tracks;
   final List<Commit> timeline;
 
+  /// Shareable code others enter to join this team (server-issued; null in
+  /// local-first mode or before the server assigns one).
+  final String? inviteCode;
+
   const Team({
     required this.id,
     required this.name,
@@ -28,6 +32,7 @@ class Team {
     required this.coverColor,
     required this.tracks,
     required this.timeline,
+    this.inviteCode,
   });
 
   int get tracksTotal => tracks.length;
@@ -61,6 +66,7 @@ class Team {
     Color? coverColor,
     List<Track>? tracks,
     List<Commit>? timeline,
+    String? inviteCode,
   }) =>
       Team(
         id: id,
@@ -72,6 +78,7 @@ class Team {
         coverColor: coverColor ?? this.coverColor,
         tracks: tracks ?? this.tracks,
         timeline: timeline ?? this.timeline,
+        inviteCode: inviteCode ?? this.inviteCode,
       );
 
   Map<String, dynamic> toJson() => {
@@ -84,6 +91,7 @@ class Team {
         'coverColor': coverColor.toARGB32(),
         'tracks': tracks.map((t) => t.toJson()).toList(),
         'timeline': timeline.map((c) => c.toJson()).toList(),
+        if (inviteCode != null) 'inviteCode': inviteCode,
       };
 
   factory Team.fromJson(Map<String, dynamic> json) => Team(
@@ -102,5 +110,6 @@ class Team {
         timeline: (json['timeline'] as List? ?? [])
             .map((c) => Commit.fromJson((c as Map).cast<String, dynamic>()))
             .toList(),
+        inviteCode: json['inviteCode'] as String?,
       );
 }

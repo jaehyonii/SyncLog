@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../controllers/auth_controller.dart';
 import '../controllers/teams_controller.dart';
 import '../domain/entities/team.dart';
 import '../theme/icons.dart';
@@ -11,6 +12,7 @@ import '../widgets/create_team_sheet.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/menu_drawer.dart';
 import '../widgets/pressable.dart';
+import '../widgets/profile_sheet.dart';
 import '../widgets/state_views.dart';
 import '../widgets/sync_app_bar.dart';
 
@@ -75,7 +77,19 @@ class HomeScreen extends StatelessWidget {
                                 size: SLType.xl, weight: FontWeight.w700, letterSpacing: -0.4)),
                       ],
                     ),
-                    right: MemberAvatar(person: controller.currentUser, size: 32),
+                    right: Pressable(
+                      semanticLabel: '내 프로필',
+                      onTap: () {
+                        final auth = context.read<AuthController>();
+                        ProfileSheet.show(
+                          context,
+                          user: auth.currentUser ?? controller.currentUser,
+                          teamCount: controller.teams.valueOrNull?.length ?? 0,
+                          onLogout: auth.logOut,
+                        );
+                      },
+                      child: MemberAvatar(person: controller.currentUser, size: 32),
+                    ),
                   ),
                   Expanded(
                     child: controller.teams.view(

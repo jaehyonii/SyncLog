@@ -21,6 +21,7 @@ class TeamRepositoryImpl implements TeamRepository {
   final DateTime Function() _now;
 
   List<Team>? _cache;
+  String? _userId;
 
   TeamRepositoryImpl({
     required TeamLocalDataSource local,
@@ -29,6 +30,14 @@ class TeamRepositoryImpl implements TeamRepository {
   })  : _local = local,
         _remote = remote,
         _now = now ?? DateTime.now;
+
+  @override
+  void setActiveUser(String? userId) {
+    if (_userId == userId) return;
+    _userId = userId;
+    _local.userId = userId; // scope the on-device store to this account
+    _cache = null; // drop the previous user's teams so the next fetch reloads
+  }
 
   Future<List<Team>> _ensureLoaded() async {
     if (_cache != null) return _cache!;
@@ -48,6 +57,14 @@ class TeamRepositoryImpl implements TeamRepository {
     if (stored != null) {
       _cache = stored;
       return stored;
+    }
+
+    // Only the default (pre-login) profile gets the sample seed content. A real
+    // signed-in user with nothing stored yet starts empty and builds their own,
+    // so accounts never share teams.
+    if (_userId != null) {
+      _cache = const [];
+      return const [];
     }
 
     final seeded = SeedData.teams(_now());
@@ -122,6 +139,21 @@ class TeamRepositoryImpl implements TeamRepository {
         await _remote.createTeam(team);
       } catch (_) {/* queued locally; will reconcile when online */}
     }
+    return team;
+  }
+
+  @override
+  Future<Team> joinTeam(String code) async {
+    // Joining another user's team is inherently a server operation; there is no
+    // shared roster to join in local-first mode.
+    if (_remote == null) {
+      throw const AppException('온라인일 때만 초대 코드로 팀에 참여할 수 있어요.');
+    }
+    final team = await _remote.joinTeam(code.trim());
+    final teams = await _ensureLoaded();
+    // Surface the joined team at the top, de-duplicating if already present.
+    _cache = [team, ...teams.where((t) => t.id != team.id)];
+    await _persist();
     return team;
   }
 

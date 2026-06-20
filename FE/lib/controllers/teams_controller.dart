@@ -26,6 +26,8 @@ class TeamsController extends ChangeNotifier {
   void setCurrentUser(Person user) {
     if (currentUser.id == user.id && currentUser.name == user.name) return;
     currentUser = user;
+    // Re-scope the store to this account so the next load() pulls their teams.
+    _repo.setActiveUser(user.id);
     notifyListeners();
   }
 
@@ -64,6 +66,13 @@ class TeamsController extends ChangeNotifier {
       memberCount: memberCount,
       creator: currentUser,
     );
+    await _refresh();
+    return team;
+  }
+
+  /// Join a team by its invite code, then refresh the list to include it.
+  Future<Team> joinTeam(String code) async {
+    final team = await _repo.joinTeam(code);
     await _refresh();
     return team;
   }

@@ -73,5 +73,6 @@ export function teamToJson(t: TeamEntity) {
     coverColor: Number(t.coverColor),
     tracks,
     timeline,
+    inviteCode: t.inviteCode ?? null,
   };
 }

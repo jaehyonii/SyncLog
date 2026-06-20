@@ -10,6 +10,7 @@ import '../services/playback_service.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import '../util/time_format.dart';
+import '../widgets/invite_code_dialog.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/state_views.dart';
 import '../widgets/sync_app_bar.dart';
@@ -108,7 +109,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   SyncAppBar(
                     left: SLIconButton(icon: SLIcons.arrowLeft, label: '뒤로', onTap: () => context.pop()),
                     title: const Text('합주 히스토리'),
-                    right: SLIconButton(icon: SLIcons.moreVertical, label: '더보기'),
+                    right: SLIconButton(
+                      icon: SLIcons.userPlus,
+                      label: '팀에 초대',
+                      onTap: () => InviteCodeDialog.show(context, team),
+                    ),
                   ),
                   Expanded(
                     child: ListView(

@@ -38,6 +38,9 @@ Future<void> main() async {
         )
       : null;
   final repository = TeamRepositoryImpl(local: local, remote: remote);
+  // Scope the store to the restored user (null → default local profile) before
+  // the first load, so each account only ever sees its own teams.
+  repository.setActiveUser(authController.currentUser?.id);
 
   // Until a user signs in, fall back to the default local profile (also keeps
   // seed data attribution stable); app.dart re-points this on login.
