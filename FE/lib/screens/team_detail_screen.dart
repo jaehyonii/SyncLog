@@ -33,6 +33,7 @@ class TeamDetailScreen extends StatefulWidget {
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
   final _detail = TeamDetailController();
   String? _boundSignature;
+  bool _refreshed = false;
 
   @override
   void dispose() {
@@ -62,6 +63,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget build(BuildContext context) {
     final teams = context.watch<TeamsController>();
     final team = teams.teamById(widget.teamId);
+
+    // Pull this team's latest server state once on open (no-op in local mode),
+    // so others' takes/joins show up without a full list reload.
+    if (!_refreshed) {
+      _refreshed = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<TeamsController>().refreshTeam(widget.teamId);
+      });
+    }
 
     // While the list is still loading we may not have the team yet.
     if (team == null) {
@@ -284,7 +294,12 @@ class _Scrubber extends StatelessWidget {
                       style: SLType.mono(size: 13, color: SL.textSecondary)),
                   Row(
                     children: [
-                      SLIconButton(icon: SLIcons.skipBack, label: '이전'),
+                      SLIconButton(
+                        icon: SLIcons.skipBack,
+                        label: '5초 뒤로',
+                        color: canPlay ? null : SL.gray400,
+                        onTap: canPlay ? detail.skipBack : null,
+                      ),
                       const SizedBox(width: 8),
                       Opacity(
                         opacity: canPlay ? 1 : 0.4,
@@ -304,7 +319,12 @@ class _Scrubber extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      SLIconButton(icon: SLIcons.skipForward, label: '다음'),
+                      SLIconButton(
+                        icon: SLIcons.skipForward,
+                        label: '5초 앞으로',
+                        color: canPlay ? null : SL.gray400,
+                        onTap: canPlay ? detail.skipForward : null,
+                      ),
                     ],
                   ),
                   Text(fmtTime(totalSec), style: SLType.mono(size: 13, color: SL.textSecondary)),

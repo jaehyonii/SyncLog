@@ -40,6 +40,10 @@ abstract class MultiTrackPlayer {
   Future<void> load(List<PlayableTrack> tracks);
   Future<void> play();
   Future<void> pause();
+
+  /// Jump playback to [position] (clamped to the stack's duration), keeping each
+  /// track aligned by its sync offset.
+  Future<void> seek(Duration position);
   Future<void> dispose();
 
   /// Real network-backed playback when every track has a URL and the platform
@@ -115,6 +119,25 @@ class VideoMultiTrackPlayer implements MultiTrackPlayer {
     _state.value = _state.value.copyWith(isPlaying: false);
   }
 
+  @override
+  Future<void> seek(Duration position) async {
+    if (_controllers.isEmpty) return;
+    final total = _master?.value.duration ?? Duration.zero;
+    final clamped = position < Duration.zero
+        ? Duration.zero
+        : (total > Duration.zero && position > total ? total : position);
+    final minOffset = _tracks.map((t) => t.offsetMs).reduce((a, b) => a < b ? a : b);
+    for (var i = 0; i < _controllers.length; i++) {
+      final delay = _tracks[i].offsetMs - minOffset;
+      final target = clamped - Duration(milliseconds: delay);
+      await _controllers[i].seekTo(target < Duration.zero ? Duration.zero : target);
+    }
+    final totalMs = total.inMilliseconds;
+    _state.value = _state.value.copyWith(
+      fraction: totalMs == 0 ? 0 : (clamped.inMilliseconds / totalMs).clamp(0.0, 1.0),
+    );
+  }
+
   Future<void> _disposeControllers() async {
     _ticker?.cancel();
     for (final c in _controllers) {
@@ -162,6 +185,15 @@ class SimulatedMultiTrackPlayer implements MultiTrackPlayer {
   Future<void> pause() async {
     _ticker?.cancel();
     _state.value = _state.value.copyWith(isPlaying: false);
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    final totalMs = total.inMilliseconds;
+    final clampedMs = position.inMilliseconds.clamp(0, totalMs);
+    _state.value = _state.value.copyWith(
+      fraction: totalMs == 0 ? 0 : clampedMs / totalMs,
+    );
   }
 
   @override

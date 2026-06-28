@@ -153,6 +153,66 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Edit the signed-in user's profile. Only the supplied fields change. Throws
+  /// [AppException] (validation / duplicate email / network) and, on success,
+  /// updates [currentUser] in place — both modes (remote API / on-device store).
+  Future<Person> updateProfile({
+    String? name,
+    String? email,
+    String? password,
+  }) async {
+    final cleanName = name?.trim();
+    final cleanEmail = email?.trim().toLowerCase();
+    if (cleanName != null && cleanName.isEmpty) {
+      throw const AppException('이름을 입력해 주세요.');
+    }
+    if (cleanEmail != null && !_isValidEmail(cleanEmail)) {
+      throw const AppException('올바른 이메일 형식이 아니에요.');
+    }
+    if (password != null && password.length < 6) {
+      throw const AppException('비밀번호는 6자 이상이어야 해요.');
+    }
+
+    return _guard(() async {
+      if (_remote != null) {
+        final token = _token;
+        if (token == null) throw const AppException('로그인이 필요해요.');
+        final updated = await _remote.updateProfile(
+          token: token,
+          name: cleanName,
+          email: cleanEmail,
+          password: password,
+        );
+        await _store.saveRemoteSession(token, updated);
+        _currentUser = updated;
+        return updated;
+      }
+
+      final id = _currentUser?.id;
+      if (id == null) throw const AppException('로그인이 필요해요.');
+      final accounts = _store.loadAccounts();
+      final idx = accounts.indexWhere((a) => a.id == id);
+      if (idx == -1) throw const AppException('계정을 찾을 수 없어요.');
+      final account = accounts[idx];
+      if (cleanEmail != null &&
+          cleanEmail != account.email &&
+          accounts.any((a) => a.email == cleanEmail)) {
+        throw const AppException('이미 가입된 이메일이에요.');
+      }
+      final updatedAccount = Account(
+        id: account.id,
+        name: cleanName ?? account.name,
+        email: cleanEmail ?? account.email,
+        passwordHash: password != null ? _hash(password) : account.passwordHash,
+      );
+      final next = [...accounts]..[idx] = updatedAccount;
+      await _store.saveAccounts(next);
+      final person = updatedAccount.toPerson();
+      _currentUser = person;
+      return person;
+    });
+  }
+
   Future<void> _activateRemote(AuthResult result) async {
     await _store.saveRemoteSession(result.token, result.user);
     _token = result.token;

@@ -55,20 +55,25 @@ Base path: `/api/v1`. All `teams` routes require `Authorization: Bearer <token>`
 
 | Method | Path | Body | Returns |
 |--------|------|------|---------|
-| `POST` | `/auth/signup` | `{ name, email, password }` | `{ token, user }` |
-| `POST` | `/auth/login`  | `{ email, password }` | `{ token, user }` |
-| `GET`  | `/auth/me`     | — (Bearer) | `user` (Person) |
+| `POST`  | `/auth/signup` | `{ name, email, password }` | `{ token, user }` |
+| `POST`  | `/auth/login`  | `{ email, password }` | `{ token, user }` |
+| `GET`   | `/auth/me`     | — (Bearer) | `user` (Person) |
+| `PATCH` | `/auth/me`     | `{ name?, email?, password? }` (Bearer) | `user` (Person) |
 
 `user` is a **Person**: `{ id, name, initial, color, email }` (`color` is an
-0xAARRGGBB int, matching `Color.toARGB32()` on the client).
+0xAARRGGBB int, matching `Color.toARGB32()` on the client). `PATCH /auth/me`
+edits only the supplied fields (renaming also refreshes the initials avatar; a
+new email is checked for clashes); the existing token stays valid.
 
 ### Teams
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET`  | `/teams` | The current user's teams, newest first |
+| `GET`  | `/teams/discover` | Other teams' public takes the user isn't in (invite codes stripped) |
 | `GET`  | `/teams/:id/stream` | One team (tracks + sync offsets + timeline) |
 | `POST` | `/teams` | Create a team (reads `name`, `song`, `bpm`, `memberCount`/`tracks.length`) |
+| `POST` | `/teams/join` | Join a team by its invite code (`{ code }`) |
 | `POST` | `/teams/:id/record` | Upload a take — `multipart/form-data` |
 
 `/record` fields: `video` (file), `track_id`, `sync_offset_ms`, `member_id`,
@@ -78,6 +83,17 @@ version, and appends a commit — the same logic the client runs locally
 is taken from the token, not the `member_id` field.
 
 All team/track/commit JSON exactly matches the client's `toJson`/`fromJson`.
+
+### Notifications
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET`  | `/notifications` | The user's activity feed, newest first |
+| `POST` | `/notifications/read` | Mark all read; returns the refreshed feed |
+
+A notification is fanned out to a team's other members when someone **joins**
+the team or **records** a take. Shape: `{ id, type ('join'|'take'), title, body,
+teamId, teamName, actor (Person), read, createdAt }`.
 
 ## Configuration
 

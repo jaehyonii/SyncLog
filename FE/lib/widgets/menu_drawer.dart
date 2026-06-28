@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
+import '../controllers/notifications_controller.dart';
 import '../controllers/teams_controller.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
@@ -17,17 +19,15 @@ class _MenuItem {
 }
 
 /// The left navigation drawer — the only path to global navigation now that the
-/// bottom tab bar is gone. Items are visual mockups that close the drawer on
-/// tap (no account header — the home screen already shows the profile).
+/// bottom tab bar is gone. Each item closes the drawer and pushes its screen.
 class MenuDrawer extends StatelessWidget {
   const MenuDrawer({super.key});
 
-  static const _items = [
-    _MenuItem(SLIcons.listMusic, '둘러보기', sub: '다른 팀의 합주 영상'),
-    _MenuItem(SLIcons.archive, '보관함', sub: '내가 올린 take · 완성본'),
-    _MenuItem(SLIcons.bell, '알림', badge: '3'),
-    _MenuItem(SLIcons.settings, '설정', sub: '카메라 · 알림 · 계정'),
-  ];
+  /// Close the drawer, then push [route].
+  void _go(BuildContext context, String route) {
+    Navigator.of(context).pop();
+    context.push(route);
+  }
 
   /// Open the "join by code" sheet. On success the joined team is already in the
   /// list (the controller refreshes), so we just confirm and close the drawer.
@@ -100,6 +100,7 @@ class MenuDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unread = context.watch<NotificationsController>().unreadCount;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -119,7 +120,27 @@ class MenuDrawer extends StatelessWidget {
                       const _MenuItem(SLIcons.userPlus, '코드로 팀 참여', sub: '초대 코드로 합주 팀 합류'),
                       onTap: () => _openJoin(context),
                     ),
-                    for (final it in _items) _row(context, it),
+                    _row(
+                      context,
+                      const _MenuItem(SLIcons.listMusic, '둘러보기', sub: '다른 팀의 합주 영상'),
+                      onTap: () => _go(context, '/browse'),
+                    ),
+                    _row(
+                      context,
+                      const _MenuItem(SLIcons.archive, '보관함', sub: '내가 올린 take · 완성본'),
+                      onTap: () => _go(context, '/archive'),
+                    ),
+                    _row(
+                      context,
+                      _MenuItem(SLIcons.bell, '알림',
+                          badge: unread > 0 ? '$unread' : null),
+                      onTap: () => _go(context, '/notifications'),
+                    ),
+                    _row(
+                      context,
+                      const _MenuItem(SLIcons.settings, '설정', sub: '카메라 · 알림 · 계정'),
+                      onTap: () => _go(context, '/settings'),
+                    ),
                   ],
                 ),
               ),
@@ -130,7 +151,8 @@ class MenuDrawer extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _row(context, const _MenuItem(SLIcons.helpCircle, '도움말')),
+                    _row(context, const _MenuItem(SLIcons.helpCircle, '도움말'),
+                        onTap: () => _go(context, '/help')),
                     _row(context, const _MenuItem(SLIcons.logOut, '로그아웃', danger: true),
                         onTap: () => _logout(context)),
                   ],

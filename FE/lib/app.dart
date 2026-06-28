@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'controllers/auth_controller.dart';
+import 'controllers/notifications_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'router.dart';
 import 'services/permission_service.dart';
@@ -15,11 +16,13 @@ import 'theme/app_theme.dart';
 class SyncLogApp extends StatefulWidget {
   final AuthController authController;
   final TeamsController teamsController;
+  final NotificationsController notificationsController;
 
   const SyncLogApp({
     super.key,
     required this.authController,
     required this.teamsController,
+    required this.notificationsController,
   });
 
   @override
@@ -45,14 +48,20 @@ class _SyncLogAppState extends State<SyncLogApp> {
     final user = widget.authController.currentUser;
     if (user == null) {
       _lastUserId = null; // signed out
+      widget.notificationsController.clear();
       return;
     }
-    if (user.id == _lastUserId) return;
+    if (user.id == _lastUserId) {
+      // Same user — pick up profile edits (name/email) for take attribution.
+      widget.teamsController.setCurrentUser(user);
+      return;
+    }
     _lastUserId = user.id;
     // Attribute teams/takes to the new user, and refetch their teams (in remote
     // mode this pulls the signed-in user's teams from the server).
     widget.teamsController.setCurrentUser(user);
     widget.teamsController.load();
+    widget.notificationsController.load();
   }
 
   @override
@@ -73,6 +82,8 @@ class _SyncLogAppState extends State<SyncLogApp> {
       providers: [
         ChangeNotifierProvider<AuthController>.value(value: widget.authController),
         ChangeNotifierProvider<TeamsController>.value(value: widget.teamsController),
+        ChangeNotifierProvider<NotificationsController>.value(
+            value: widget.notificationsController),
         Provider<PermissionService>.value(value: PermissionService.platform()),
       ],
       child: MaterialApp.router(

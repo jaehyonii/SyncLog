@@ -8,6 +8,7 @@ import {
   makeInviteCode,
   nextVersion,
 } from '../common/sync';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UserEntity } from '../users/user.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { CommitEntity } from './entities/commit.entity';
@@ -48,6 +49,7 @@ export class TeamsService {
     private readonly commits: Repository<CommitEntity>,
     @InjectRepository(TeamMemberEntity)
     private readonly members: Repository<TeamMemberEntity>,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Teams the user belongs to, newest first. */
@@ -87,9 +89,20 @@ export class TeamsService {
       where: { teamId: team.id, userId: user.id },
     });
     if (!already) {
+      // Existing roster (before this user joins) is who gets notified.
+      const roster = await this.members.find({ where: { teamId: team.id } });
       await this.members.save(
         this.members.create({ teamId: team.id, userId: user.id }),
       );
+      await this.notifications.notify({
+        recipientIds: roster.map((m) => m.userId),
+        actorId: user.id,
+        teamId: team.id,
+        teamName: team.name,
+        type: 'join',
+        title: `${user.name}님이 합류했어요`,
+        body: `‘${team.name}’ 팀에 새 멤버가 들어왔어요.`,
+      });
     }
     return this.getForUser(team.id, user.id);
   }
@@ -200,7 +213,39 @@ export class TeamsService {
       }),
     );
 
+    // Let the rest of the roster know a new take landed on the timeline.
+    const roster = await this.members.find({ where: { teamId } });
+    await this.notifications.notify({
+      recipientIds: roster.map((m) => m.userId),
+      actorId: user.id,
+      teamId,
+      teamName: team.name,
+      type: 'take',
+      title: `${user.name}님이 ${track.partKo} 파트를 올렸어요`,
+      body:
+        note && note.length > 0
+          ? note
+          : `‘${team.name}’에 새 버전이 추가됐어요.`,
+    });
+
     return this.getForUser(teamId, user.id);
+  }
+
+  /**
+   * Public feed: teams the user is NOT in that already have at least one take,
+   * newest first. Invite codes are stripped — this is a browse-only view.
+   */
+  async discover(userId: string) {
+    const memberships = await this.members.find({ where: { userId } });
+    const mine = new Set(memberships.map((m) => m.teamId));
+
+    const teams = await this.teams.find({ relations: TEAM_RELATIONS });
+    return teams
+      .filter((t) => !mine.has(t.id))
+      .filter((t) => (t.tracks ?? []).some((tr) => tr.status === 'ready'))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 30)
+      .map((t) => ({ ...teamToJson(t), inviteCode: null }));
   }
 
   private loadTeam(teamId: string) {

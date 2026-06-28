@@ -40,6 +40,32 @@ class TeamsController extends ChangeNotifier {
     await _refresh();
   }
 
+  /// Other teams' public takes the user can browse but isn't a member of.
+  /// Empty in local-first mode. Surfaced by the 둘러보기 screen.
+  Future<List<Team>> discoverTeams() => _repo.discoverTeams();
+
+  /// Re-pull one team's latest state from the server (in remote mode) and patch
+  /// it into the list, so the detail screen reflects others' takes/joins.
+  /// Best-effort: keeps the cached copy on failure.
+  Future<void> refreshTeam(String id) async {
+    final list = _teams.valueOrNull;
+    if (list == null) return;
+    try {
+      final fresh = await _repo.fetchTeam(id);
+      final i = list.indexWhere((t) => t.id == id);
+      final next = [...list];
+      if (i == -1) {
+        next.insert(0, fresh);
+      } else {
+        next[i] = fresh;
+      }
+      _teams = AsyncValue.data(next);
+      notifyListeners();
+    } catch (_) {
+      // Keep the cached copy; the detail screen still renders.
+    }
+  }
+
   Future<void> _refresh() async {
     try {
       final list = await _repo.fetchTeams();

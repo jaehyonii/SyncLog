@@ -5,10 +5,15 @@ import 'controllers/auth_controller.dart';
 import 'controllers/recording_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'domain/entities/recorded_take.dart';
+import 'screens/archive_screen.dart';
+import 'screens/browse_screen.dart';
+import 'screens/help_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/not_found_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/recording_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/sync_editor_screen.dart';
 import 'screens/team_detail_screen.dart';
@@ -57,6 +62,13 @@ GoRouter buildRouter(AuthController auth) {
         path: '/',
         builder: (context, state) => const HomeScreen(),
         routes: [
+          GoRoute(path: 'browse', builder: (context, state) => const BrowseScreen()),
+          GoRoute(path: 'archive', builder: (context, state) => const ArchiveScreen()),
+          GoRoute(
+              path: 'notifications',
+              builder: (context, state) => const NotificationsScreen()),
+          GoRoute(path: 'settings', builder: (context, state) => const SettingsScreen()),
+          GoRoute(path: 'help', builder: (context, state) => const HelpScreen()),
           GoRoute(
             path: 'teams/:id',
             builder: (context, state) =>

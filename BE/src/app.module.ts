@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { TeamsModule } from './teams/teams.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { TeamsModule } from './teams/teams.module';
     }),
     AuthModule,
     TeamsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

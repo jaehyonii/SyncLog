@@ -42,6 +42,25 @@ class TeamDetailController extends ChangeNotifier {
     }
   }
 
+  /// Default scrub step for the transport's skip buttons.
+  static const _skipStep = Duration(seconds: 5);
+
+  Future<void> skipBack() => _skip(-_skipStep);
+  Future<void> skipForward() => _skip(_skipStep);
+
+  Future<void> _skip(Duration delta) async {
+    final p = _player;
+    if (p == null) return;
+    final s = p.state.value;
+    final total = s.total == Duration.zero
+        ? const Duration(minutes: 3, seconds: 45)
+        : s.total;
+    final currentMs = (s.fraction * total.inMilliseconds).round();
+    final nextMs =
+        (currentMs + delta.inMilliseconds).clamp(0, total.inMilliseconds);
+    await p.seek(Duration(milliseconds: nextMs));
+  }
+
   @override
   void dispose() {
     _player?.dispose();
