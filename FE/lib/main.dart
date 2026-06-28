@@ -4,9 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'config.dart';
 import 'controllers/auth_controller.dart';
+import 'controllers/notifications_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'data/datasources/auth_local_datasource.dart';
 import 'data/datasources/auth_remote_datasource.dart';
+import 'data/datasources/notifications_remote_datasource.dart';
 import 'data/datasources/team_local_datasource.dart';
 import 'data/datasources/team_remote_datasource.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -49,8 +51,19 @@ Future<void> main() async {
     currentUser: authController.currentUser ?? Session.local().currentUser,
   )..load();
 
+  // The activity feed is a server feature; in local-first mode it stays empty.
+  final notificationsController = NotificationsController(
+    remote: config.useRemote
+        ? HttpNotificationsRemoteDataSource(
+            baseUrl: config.apiBaseUrl,
+            tokenProvider: () => authController.token,
+          )
+        : null,
+  )..load();
+
   runApp(SyncLogApp(
     authController: authController,
     teamsController: teamsController,
+    notificationsController: notificationsController,
   ));
 }

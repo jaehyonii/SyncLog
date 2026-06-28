@@ -1,9 +1,14 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 import '../controllers/teams_controller.dart';
+import '../domain/entities/recorded_take.dart';
 import '../router.dart';
+import '../services/take_player_stub.dart'
+    if (dart.library.io) '../services/take_player_io.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import '../widgets/pressable.dart';
@@ -89,7 +94,7 @@ class _SyncEditorScreenState extends State<SyncEditorScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(SL.gutter),
                 children: [
-                  _videoPreview(),
+                  _TakePreview(take: widget.args.take),
                   const SizedBox(height: 22),
                   _offsetReadout(),
                   const SizedBox(height: 22),
@@ -111,57 +116,6 @@ class _SyncEditorScreenState extends State<SyncEditorScreen> {
                 fullWidth: true,
                 icon: SLIcons.upload,
                 onTap: _uploading ? null : _confirm,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _videoPreview() {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(SL.radiusMd),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(0, -0.3),
-                    radius: 0.85,
-                    colors: [Color(0xFF26231F), Color(0xFF131210)],
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: Icon(SLIcons.piano, size: 64, color: const Color(0xFFF4F3EF).withValues(alpha: 0.12)),
-            ),
-            Positioned(
-              left: 12,
-              top: 12,
-              child: SyncTag(
-                widget.args.take.isReal ? '내 촬영본' : '내 파트',
-                tone: SLTagTone.onDark,
-              ),
-            ),
-            Center(
-              child: Pressable(
-                onTap: () {},
-                semanticLabel: '재생',
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(SLIcons.play, size: 28, color: SL.ink),
-                ),
               ),
             ),
           ],
@@ -294,6 +248,163 @@ class _SyncEditorScreenState extends State<SyncEditorScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The recorded take's square preview. Plays the local capture on tap (real
+/// camera takes on mobile); on platforms with no file handle it keeps the dark
+/// placeholder and explains why playback isn't available.
+class _TakePreview extends StatefulWidget {
+  final RecordedTake take;
+  const _TakePreview({required this.take});
+
+  @override
+  State<_TakePreview> createState() => _TakePreviewState();
+}
+
+class _TakePreviewState extends State<_TakePreview> {
+  VideoPlayerController? _controller;
+  bool _initializing = false;
+  bool _failed = false;
+
+  /// A real, file-backed take we can actually play (mobile capture).
+  bool get _playable =>
+      !kIsWeb && widget.take.isReal && widget.take.filePath != null && !_failed;
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (!_playable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이 환경에서는 촬영본 미리보기를 지원하지 않아요.')),
+      );
+      return;
+    }
+
+    // Lazily create + initialize the controller on first play.
+    if (_controller == null) {
+      setState(() => _initializing = true);
+      try {
+        final c = createTakeController(widget.take.filePath!);
+        await c.initialize();
+        await c.setLooping(true);
+        if (!mounted) {
+          await c.dispose();
+          return;
+        }
+        c.addListener(_onTick);
+        setState(() {
+          _controller = c;
+          _initializing = false;
+        });
+        await c.play();
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _initializing = false;
+          _failed = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('촬영본을 재생하지 못했어요.')),
+        );
+      }
+      return;
+    }
+
+    final c = _controller!;
+    if (c.value.isPlaying) {
+      await c.pause();
+    } else {
+      await c.play();
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _onTick() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _controller;
+    final isPlaying = c?.value.isPlaying ?? false;
+    return AspectRatio(
+      aspectRatio: 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(SL.radiusMd),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(0, -0.3),
+                    radius: 0.85,
+                    colors: [Color(0xFF26231F), Color(0xFF131210)],
+                  ),
+                ),
+              ),
+            ),
+            if (c != null && c.value.isInitialized)
+              Positioned.fill(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: c.value.size.width,
+                    height: c.value.size.height,
+                    child: VideoPlayer(c),
+                  ),
+                ),
+              )
+            else
+              Center(
+                child: Icon(SLIcons.piano,
+                    size: 64, color: const Color(0xFFF4F3EF).withValues(alpha: 0.12)),
+              ),
+            Positioned(
+              left: 12,
+              top: 12,
+              child: SyncTag(
+                widget.take.isReal ? '내 촬영본' : '내 파트',
+                tone: SLTagTone.onDark,
+              ),
+            ),
+            // Hide the big play button while actively playing; tap the frame to pause.
+            Positioned.fill(
+              child: Pressable(
+                onTap: _toggle,
+                semanticLabel: isPlaying ? '일시정지' : '재생',
+                child: Center(
+                  child: isPlaying
+                      ? const SizedBox.shrink()
+                      : Container(
+                          width: 56,
+                          height: 56,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            shape: BoxShape.circle,
+                          ),
+                          child: _initializing
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.4, color: SL.ink),
+                                )
+                              : const Icon(SLIcons.play, size: 28, color: SL.ink),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

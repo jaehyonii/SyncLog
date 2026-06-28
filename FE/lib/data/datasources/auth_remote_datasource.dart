@@ -19,6 +19,15 @@ abstract class AuthRemoteDataSource {
     required String password,
   });
   Future<AuthResult> login({required String email, required String password});
+
+  /// Edit the signed-in user's profile. Only non-null fields are changed.
+  /// Returns the updated [Person] (the existing [token] stays valid).
+  Future<Person> updateProfile({
+    required String token,
+    String? name,
+    String? email,
+    String? password,
+  });
 }
 
 /// Talks to the SyncLog backend's auth endpoints:
@@ -52,6 +61,40 @@ class HttpAuthRemoteDataSource implements AuthRemoteDataSource {
     required String password,
   }) =>
       _post('/api/v1/auth/login', {'email': email, 'password': password});
+
+  @override
+  Future<Person> updateProfile({
+    required String token,
+    String? name,
+    String? email,
+    String? password,
+  }) async {
+    final http.Response res;
+    try {
+      res = await _client.patch(
+        Uri.parse('$baseUrl/api/v1/auth/me'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          if (name != null) 'name': name,
+          if (email != null) 'email': email,
+          if (password != null) 'password': password,
+        }),
+      );
+    } catch (e) {
+      throw AppException.network(e);
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw AppException(_messageFrom(res.statusCode, res.body));
+    }
+    try {
+      return Person.fromJson((jsonDecode(res.body) as Map).cast<String, dynamic>());
+    } catch (e) {
+      throw AppException('프로필 응답을 처리하지 못했어요.', e);
+    }
+  }
 
   Future<AuthResult> _post(String path, Map<String, dynamic> body) async {
     final http.Response res;

@@ -13,6 +13,11 @@ abstract class TeamRepository {
   /// All teams the current user belongs to. (GET /api/v1/teams)
   Future<List<Team>> fetchTeams();
 
+  /// Other teams' public takes the user can browse but isn't a member of.
+  /// Empty in local-first mode (there is no shared catalog offline).
+  /// (GET /api/v1/teams/discover)
+  Future<List<Team>> discoverTeams();
+
   /// One team with its active tracks + sync offsets + timeline.
   /// (GET /api/v1/teams/{id}/stream)
   Future<Team> fetchTeam(String teamId);

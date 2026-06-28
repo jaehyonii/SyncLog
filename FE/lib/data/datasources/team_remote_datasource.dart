@@ -9,6 +9,9 @@ import '../../util/app_exception.dart';
 /// [HttpTeamRemoteDataSource]; swap in a mock for tests.
 abstract class TeamRemoteDataSource {
   Future<List<Team>> fetchTeams();
+
+  /// Public feed: other teams' takes the user can browse but isn't in.
+  Future<List<Team>> discoverTeams();
   Future<Team> fetchTeam(String teamId);
   Future<Team> createTeam(Team team);
   Future<Team> joinTeam(String code);
@@ -62,6 +65,13 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
   @override
   Future<List<Team>> fetchTeams() async {
     final res = await _get('/api/v1/teams');
+    final list = jsonDecode(res) as List;
+    return list.map((e) => Team.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  @override
+  Future<List<Team>> discoverTeams() async {
+    final res = await _get('/api/v1/teams/discover');
     final list = jsonDecode(res) as List;
     return list.map((e) => Team.fromJson((e as Map).cast<String, dynamic>())).toList();
   }

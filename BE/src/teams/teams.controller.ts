@@ -25,8 +25,10 @@ export const UPLOAD_DIR = './uploads';
 
 /**
  *   GET  /api/v1/teams              -> Team[]   (the user's teams)
+ *   GET  /api/v1/teams/discover     -> Team[]   (other teams' public takes)
  *   GET  /api/v1/teams/:id/stream   -> Team
  *   POST /api/v1/teams              -> Team     (create)
+ *   POST /api/v1/teams/join         -> Team     (join by invite code)
  *   POST /api/v1/teams/:id/record   -> Team     (multipart take upload)
  */
 @Controller('teams')
@@ -40,6 +42,11 @@ export class TeamsController {
   @Get()
   list(@CurrentUser() user: UserEntity) {
     return this.teams.listForUser(user.id);
+  }
+
+  @Get('discover')
+  discover(@CurrentUser() user: UserEntity) {
+    return this.teams.discover(user.id);
   }
 
   @Get(':id/stream')

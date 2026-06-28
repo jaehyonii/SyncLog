@@ -81,7 +81,32 @@ class TeamRepositoryImpl implements TeamRepository {
   Future<List<Team>> fetchTeams() async => List.unmodifiable(await _ensureLoaded());
 
   @override
+  Future<List<Team>> discoverTeams() async {
+    // A browse-only catalog of other teams' takes only exists on the server.
+    if (_remote == null) return const [];
+    return _remote.discoverTeams();
+  }
+
+  @override
   Future<Team> fetchTeam(String teamId) async {
+    // In remote mode, pull the team's latest state from the server and refresh
+    // the cached copy, so the detail screen reflects others' takes/joins. Fall
+    // back to the cache when offline (or in local-first mode).
+    if (_remote != null) {
+      try {
+        final fresh = await _remote.fetchTeam(teamId);
+        final teams = await _ensureLoaded();
+        final i = teams.indexWhere((t) => t.id == teamId);
+        _cache = i == -1
+            ? [fresh, ...teams]
+            : [...teams.sublist(0, i), fresh, ...teams.sublist(i + 1)];
+        await _persist();
+        return fresh;
+      } catch (_) {
+        // Network unavailable — fall through to the cached copy below.
+      }
+    }
+
     final teams = await _ensureLoaded();
     final t = teams.where((t) => t.id == teamId).firstOrNull;
     if (t == null) throw const AppException.notFound();

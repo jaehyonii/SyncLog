@@ -1,15 +1,23 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserEntity } from '../users/user.entity';
 import { userToPerson } from '../teams/serializers';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
-import { LoginDto, SignupDto } from './dto/auth.dto';
+import { LoginDto, SignupDto, UpdateProfileDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 /**
- *   POST /api/v1/auth/signup  { name, email, password } -> { token, user }
- *   POST /api/v1/auth/login   { email, password }       -> { token, user }
- *   GET  /api/v1/auth/me      (Bearer)                  -> Person
+ *   POST  /api/v1/auth/signup  { name, email, password } -> { token, user }
+ *   POST  /api/v1/auth/login   { email, password }       -> { token, user }
+ *   GET   /api/v1/auth/me      (Bearer)                  -> Person
+ *   PATCH /api/v1/auth/me      { name?, email?, password? } -> Person
  */
 @Controller('auth')
 export class AuthController {
@@ -29,5 +37,11 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: UserEntity) {
     return userToPerson(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  updateMe(@CurrentUser() user: UserEntity, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(user, dto);
   }
 }

@@ -73,12 +73,32 @@ Explicit join table so member **order** is stable.
 | `part` | varchar? | the part this commit touched |
 | `createdAt` | timestamptz | default now; timeline order (newest first) |
 
+### `notifications` — activity feed (`src/notifications/entities/notification.entity.ts`)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `userId` | uuid | recipient (indexed); the feed is "my notifications" |
+| `actorId` | uuid | FK → `users.id` (CASCADE); who triggered it |
+| `teamId` | uuid? | the related team (nullable) |
+| `teamName` | varchar | denormalized so it survives team deletion |
+| `type` | varchar | `join` \| `take` |
+| `title` | varchar | one-line headline |
+| `body` | text | detail line |
+| `read` | boolean | default false |
+| `createdAt` | timestamptz | default now; feed order (newest first) |
+
+Rows are created in `TeamsService` when someone joins a team or records a take,
+one per other member. Serialized to clients as `{ id, type, title, body, teamId,
+teamName, actor (Person), read, createdAt }`.
+
 ## Relationships
 
 ```
 users 1───* team_members *───1 teams
 users 1───* tracks  (member, nullable)   teams 1───* tracks
 users 1───* commits                      teams 1───* commits
+users 1───* notifications (recipient + actor)
 ```
 
 Deleting a team cascades to its members, tracks, and commits. Deleting a user
