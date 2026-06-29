@@ -177,8 +177,15 @@ class TeamRepositoryImpl implements TeamRepository {
     await _persist();
     if (_remote != null) {
       try {
-        await _remote.createTeam(team);
-      } catch (_) {/* queued locally; will reconcile when online */}
+        // Adopt the server's canonical team — its real id and per-part invite
+        // codes — replacing the optimistic local copy. Without this the detail
+        // screen, invite codes, and uploads would target a local-only id the
+        // server doesn't know (404).
+        final created = await _remote.createTeam(team);
+        _cache = [created, ...teams.where((t) => t.id != created.id)];
+        await _persist();
+        return created;
+      } catch (_) {/* offline: keep the optimistic local team for now */}
     }
     return team;
   }
