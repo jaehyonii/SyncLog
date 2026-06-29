@@ -1,16 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import {
   coverFor,
   fmtOffset,
   INSTRUMENT_LINEUP,
+  isSameDay,
   makeInviteCode,
   nextVersion,
 } from '../common/sync';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserEntity } from '../users/user.entity';
-import { CreateTeamDto } from './dto/create-team.dto';
+import { CreateTeamDto, CreateTeamPartDto } from './dto/create-team.dto';
 import { CommitEntity } from './entities/commit.entity';
 import { TeamMemberEntity } from './entities/team-member.entity';
 import { TeamEntity } from './entities/team.entity';
@@ -77,43 +83,67 @@ export class TeamsService {
     return teamToJson(team);
   }
 
-  /** Join a team by its shareable code, adding the user to the roster. */
+  /**
+   * Join by code. A per-part code claims that exact part (sets the user as its
+   * owner); a team-level code is still accepted as a legacy fallback that only
+   * adds the user to the roster.
+   */
   async joinByCode(user: UserEntity, rawCode: string) {
     const code = (rawCode ?? '').trim().toUpperCase();
     if (!code) throw new NotFoundException('초대 코드를 확인해 주세요.');
 
+    // Per-part code: claim the specific slot.
+    const track = await this.tracks.findOne({ where: { inviteCode: code } });
+    if (track) {
+      if (track.memberId && track.memberId !== user.id) {
+        throw new ConflictException('이미 다른 멤버가 맡은 파트예요.');
+      }
+      const team = await this.teams.findOne({ where: { id: track.teamId } });
+      if (!team) throw new NotFoundException('유효하지 않은 초대 코드예요.');
+
+      await this.addToRoster(team, user);
+      if (!track.memberId) {
+        track.memberId = user.id;
+        track.inviteCode = null; // code is spent once the part has an owner
+        await this.tracks.save(track);
+      }
+      return this.getForUser(team.id, user.id);
+    }
+
+    // Legacy team-level code: roster-only join.
     const team = await this.teams.findOne({ where: { inviteCode: code } });
     if (!team) throw new NotFoundException('유효하지 않은 초대 코드예요.');
-
-    const already = await this.members.findOne({
-      where: { teamId: team.id, userId: user.id },
-    });
-    if (!already) {
-      // Existing roster (before this user joins) is who gets notified.
-      const roster = await this.members.find({ where: { teamId: team.id } });
-      await this.members.save(
-        this.members.create({ teamId: team.id, userId: user.id }),
-      );
-      await this.notifications.notify({
-        recipientIds: roster.map((m) => m.userId),
-        actorId: user.id,
-        teamId: team.id,
-        teamName: team.name,
-        type: 'join',
-        title: `${user.name}님이 합류했어요`,
-        body: `‘${team.name}’ 팀에 새 멤버가 들어왔어요.`,
-      });
-    }
+    await this.addToRoster(team, user);
     return this.getForUser(team.id, user.id);
   }
 
-  async create(user: UserEntity, dto: CreateTeamDto) {
-    const count = Math.min(
-      Math.max(dto.memberCount ?? dto.tracks?.length ?? 4, 1),
-      8,
+  /** Add a user to a team's roster (if new) and notify the existing members. */
+  private async addToRoster(team: TeamEntity, user: UserEntity) {
+    const already = await this.members.findOne({
+      where: { teamId: team.id, userId: user.id },
+    });
+    if (already) return;
+
+    // Existing roster (before this user joins) is who gets notified.
+    const roster = await this.members.find({ where: { teamId: team.id } });
+    await this.members.save(
+      this.members.create({ teamId: team.id, userId: user.id }),
     );
+    await this.notifications.notify({
+      recipientIds: roster.map((m) => m.userId),
+      actorId: user.id,
+      teamId: team.id,
+      teamName: team.name,
+      type: 'join',
+      title: `${user.name}님이 합류했어요`,
+      body: `‘${team.name}’ 팀에 새 멤버가 들어왔어요.`,
+    });
+  }
+
+  async create(user: UserEntity, dto: CreateTeamDto) {
     const song = dto.song?.trim() ?? '';
     const teamCount = await this.teams.count();
+    const parts = this.resolveParts(dto);
 
     const team = await this.teams.save(
       this.teams.create({
@@ -123,7 +153,7 @@ export class TeamsService {
         bpm: dto.bpm ?? 90,
         coverColor: String(dto.coverColor ?? coverFor(teamCount)),
         ownerId: user.id,
-        inviteCode: await this.uniqueInviteCode(),
+        inviteCode: await this.uniqueCode(),
       }),
     );
 
@@ -131,18 +161,26 @@ export class TeamsService {
       this.members.create({ teamId: team.id, userId: user.id }),
     );
 
-    const slots = Array.from({ length: count }, (_, i) => {
-      const preset = INSTRUMENT_LINEUP[i % INSTRUMENT_LINEUP.length];
-      return this.tracks.create({
-        teamId: team.id,
-        part: preset.part,
-        partKo: preset.partKo,
-        instrument: preset.glyph,
-        status: 'open',
-        position: i,
-        syncOffsetMs: 0,
-      });
-    });
+    // Build one track per defined part. The leader's part is claimed up front
+    // (memberId set, no code); every other part gets its own invite code so a
+    // specific member can be invited to that exact slot.
+    const slots: TrackEntity[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      slots.push(
+        this.tracks.create({
+          teamId: team.id,
+          part: p.part,
+          partKo: p.partKo,
+          instrument: p.instrument,
+          status: 'open',
+          position: i,
+          syncOffsetMs: 0,
+          memberId: p.mine ? user.id : null,
+          inviteCode: p.mine ? null : await this.uniqueCode(),
+        }),
+      );
+    }
     await this.tracks.save(slots);
 
     await this.commits.save(
@@ -155,6 +193,56 @@ export class TeamsService {
     );
 
     return this.getForUser(team.id, user.id);
+  }
+
+  /**
+   * Normalize the requested parts into an ordered lineup. Uses the leader's
+   * `parts` when given (display name + glyph + which one is theirs); otherwise
+   * falls back to the default instrument lineup sized by `memberCount`. Exactly
+   * one part is marked `mine` — the first `mine`, or slot 0 if none was flagged.
+   */
+  private resolveParts(dto: CreateTeamDto): Array<{
+    part: string;
+    partKo: string;
+    instrument: string;
+    mine: boolean;
+  }> {
+    const fromClient = (dto.parts ?? [])
+      .map((p: CreateTeamPartDto) => ({
+        name: (p.name ?? '').trim(),
+        instrument: (p.instrument ?? '').trim() || 'audio-lines',
+        mine: p.mine === true,
+      }))
+      .filter((p) => p.name.length > 0)
+      .slice(0, 8);
+
+    let lineup: Array<{ partKo: string; instrument: string; mine: boolean }>;
+    if (fromClient.length > 0) {
+      lineup = fromClient.map((p) => ({
+        partKo: p.name,
+        instrument: p.instrument,
+        mine: p.mine,
+      }));
+    } else {
+      const count = Math.min(
+        Math.max(dto.memberCount ?? dto.tracks?.length ?? 4, 1),
+        8,
+      );
+      lineup = Array.from({ length: count }, (_, i) => {
+        const preset = INSTRUMENT_LINEUP[i % INSTRUMENT_LINEUP.length];
+        return { partKo: preset.partKo, instrument: preset.glyph, mine: false };
+      });
+    }
+
+    // Ensure exactly one part belongs to the leader.
+    const firstMine = lineup.findIndex((p) => p.mine);
+    const ownerIdx = firstMine >= 0 ? firstMine : 0;
+    return lineup.map((p, i) => ({
+      part: p.partKo,
+      partKo: p.partKo,
+      instrument: p.instrument,
+      mine: i === ownerIdx,
+    }));
   }
 
   /**
@@ -176,25 +264,34 @@ export class TeamsService {
     });
     if (!track) throw new NotFoundException('요청한 항목을 찾을 수 없어요.');
 
+    // You may only upload to your own part. The leader's part is claimed at
+    // creation; everyone else claims theirs by joining with the part's code.
+    if (!track.memberId) {
+      throw new ForbiddenException(
+        '먼저 파트 초대 코드로 이 파트에 참여해 주세요.',
+      );
+    }
+    if (track.memberId !== user.id) {
+      throw new ForbiddenException('본인 파트에만 업로드할 수 있어요.');
+    }
+
+    // One upload per calendar day per part; versions still accumulate.
+    const now = new Date();
+    if (track.lastUploadedAt && isSameDay(track.lastUploadedAt, now)) {
+      throw new ConflictException(
+        '오늘은 이미 이 파트를 올렸어요. 내일 새 버전을 올릴 수 있어요.',
+      );
+    }
+
     const syncOffsetMs = Number.parseInt(fields.sync_offset_ms ?? '0', 10) || 0;
     const note = fields.note?.trim();
 
     track.status = 'ready';
-    track.memberId = user.id;
     track.syncOffsetMs = syncOffsetMs;
     if (videoUrl) track.videoUrl = videoUrl;
     track.note = note && note.length > 0 ? note : `${track.partKo} 파트 추가`;
+    track.lastUploadedAt = now;
     await this.tracks.save(track);
-
-    // A recorder who wasn't on the roster joins it (mirrors the client).
-    const onRoster = await this.members.findOne({
-      where: { teamId, userId: user.id },
-    });
-    if (!onRoster) {
-      await this.members.save(
-        this.members.create({ teamId, userId: user.id }),
-      );
-    }
 
     const latest = await this.commits.findOne({
       where: { teamId },
@@ -245,7 +342,14 @@ export class TeamsService {
       .filter((t) => (t.tracks ?? []).some((tr) => tr.status === 'ready'))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, 30)
-      .map((t) => ({ ...teamToJson(t), inviteCode: null }));
+      .map((t) => {
+        const json = teamToJson(t);
+        return {
+          ...json,
+          inviteCode: null,
+          tracks: json.tracks.map((tr) => ({ ...tr, inviteCode: null })),
+        };
+      });
   }
 
   private loadTeam(teamId: string) {
@@ -255,12 +359,18 @@ export class TeamsService {
     });
   }
 
-  /** A fresh invite code not currently used by any team. */
-  private async uniqueInviteCode(): Promise<string> {
+  /** A fresh invite code not currently used by any team or part. */
+  private async uniqueCode(): Promise<string> {
     for (let i = 0; i < 10; i++) {
       const code = makeInviteCode();
-      const clash = await this.teams.findOne({ where: { inviteCode: code } });
-      if (!clash) return code;
+      const teamClash = await this.teams.findOne({
+        where: { inviteCode: code },
+      });
+      if (teamClash) continue;
+      const trackClash = await this.tracks.findOne({
+        where: { inviteCode: code },
+      });
+      if (!trackClash) return code;
     }
     throw new Error('Could not allocate a unique invite code');
   }
@@ -268,7 +378,7 @@ export class TeamsService {
   /** Give a pre-invites team a code on first access (mutates `team` in place). */
   private async ensureInviteCode(team: TeamEntity) {
     if (team.inviteCode) return;
-    const code = await this.uniqueInviteCode();
+    const code = await this.uniqueCode();
     await this.teams.update(team.id, { inviteCode: code });
     team.inviteCode = code;
   }

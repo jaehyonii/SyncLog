@@ -6,11 +6,13 @@ import '../controllers/team_detail_controller.dart';
 import '../controllers/teams_controller.dart';
 import '../domain/entities/commit.dart';
 import '../domain/entities/team.dart';
+import '../domain/entities/track.dart';
 import '../services/playback_service.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import '../util/time_format.dart';
 import '../widgets/invite_code_dialog.dart';
+import '../widgets/part_invite_dialog.dart';
 import '../widgets/member_avatar.dart';
 import '../widgets/state_views.dart';
 import '../widgets/sync_app_bar.dart';
@@ -53,10 +55,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     });
   }
 
-  void _recordInto(Team team, String? trackId) {
-    final tid = trackId ?? team.firstOpenTrack?.id;
-    final q = tid != null ? '?trackId=$tid' : '';
-    context.push('/teams/${team.id}/record$q');
+  void _recordInto(Team team, String trackId) {
+    context.push('/teams/${team.id}/record?trackId=$trackId');
+  }
+
+  void _invite(Team team, Track track) {
+    PartInviteDialog.show(context, team.name, track);
   }
 
   @override
@@ -104,7 +108,19 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     }
 
     _rebindIfNeeded(team);
-    final hasOpen = team.firstOpenTrack != null;
+
+    // The signed-in member's own part drives the record CTA (each member is
+    // fixed to one part). Uploads are limited to once per day.
+    final me = teams.currentUser.id;
+    final myTrack = team.myTrack(me);
+    final canRecord = myTrack != null && !myTrack.uploadedToday;
+    final ctaLabel = myTrack == null
+        ? '참여한 파트가 없어요'
+        : myTrack.uploadedToday
+            ? '오늘 내 파트 업로드 완료'
+            : myTrack.isReady
+                ? '내 파트 새 버전 녹화'
+                : '내 파트 녹화하기';
 
     return ChangeNotifierProvider.value(
       value: _detail,
@@ -129,7 +145,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     child: ListView(
                       padding: EdgeInsets.zero,
                       children: [
-                        _MultitrackGrid(team: team, onJoin: (id) => _recordInto(team, id)),
+                        _MultitrackGrid(
+                          team: team,
+                          currentUserId: me,
+                          onRecord: (id) => _recordInto(team, id),
+                          onInvite: (tr) => _invite(team, tr),
+                        ),
                         const _Scrubber(),
                         _HistoryTimeline(team: team),
                       ],
@@ -152,12 +173,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     ),
                   ),
                   child: SyncButton(
-                    label: hasOpen ? '내 파트 녹화하기' : '모든 파트가 찼어요',
-                    variant: hasOpen ? SLButtonVariant.primary : SLButtonVariant.soft,
+                    label: ctaLabel,
+                    variant: canRecord ? SLButtonVariant.primary : SLButtonVariant.soft,
                     size: SLButtonSize.lg,
                     fullWidth: true,
-                    icon: hasOpen ? SLIcons.circle : SLIcons.check,
-                    onTap: hasOpen ? () => _recordInto(team, null) : null,
+                    icon: canRecord ? SLIcons.circle : SLIcons.check,
+                    onTap: canRecord ? () => _recordInto(team, myTrack.id) : null,
                   ),
                 ),
               ),
@@ -171,8 +192,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
 class _MultitrackGrid extends StatelessWidget {
   final Team team;
-  final void Function(String trackId) onJoin;
-  const _MultitrackGrid({required this.team, required this.onJoin});
+  final String? currentUserId;
+  final void Function(String trackId) onRecord;
+  final void Function(Track track) onInvite;
+  const _MultitrackGrid({
+    required this.team,
+    required this.currentUserId,
+    required this.onRecord,
+    required this.onInvite,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +224,9 @@ class _MultitrackGrid extends StatelessWidget {
                 for (final tr in team.tracks)
                   VideoCell(
                     track: tr,
-                    onJoin: () => onJoin(tr.id),
+                    currentUserId: currentUserId,
+                    onRecord: () => onRecord(tr.id),
+                    onInvite: () => onInvite(tr),
                     playing: state.isPlaying && tr.isReady,
                   ),
               ],

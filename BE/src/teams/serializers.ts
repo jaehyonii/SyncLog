@@ -31,6 +31,10 @@ export function trackToJson(t: TrackEntity) {
     videoUrl: t.videoUrl ?? null,
     localPath: null, // client-only field; never set by the server
     note: t.note ?? null,
+    inviteCode: t.inviteCode ?? null, // per-part code; null once claimed
+    lastUploadedAt: t.lastUploadedAt
+      ? t.lastUploadedAt.toISOString()
+      : null,
   };
 }
 

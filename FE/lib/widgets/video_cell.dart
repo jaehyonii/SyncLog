@@ -5,63 +5,154 @@ import '../theme/tokens.dart';
 import 'pressable.dart';
 import 'sync_tag.dart';
 
-/// One cell of the multitrack grid on the dark stage. A `ready` track shows the
-/// member's take (instrument glyph on a near-black vignette); an `open` cell is
-/// a tappable join slot with a "참여 +" pill.
+/// One cell of the multitrack grid on the dark stage.
 ///
-/// Camera & video are honest dark placeholders — drop in the real Flutter
-/// camera preview / track thumbnails (or wire `videoUrl`) for production.
+/// A `ready` track shows the member's take (instrument glyph on a near-black
+/// vignette — real video is wired in [VideoCell]'s ready branch). An `open`
+/// cell renders by ownership: the viewer's own unfilled part is a record CTA;
+/// an invitable part shows its per-part code; a part already claimed by someone
+/// else shows a quiet "대기 중".
 class VideoCell extends StatelessWidget {
   final Track track;
-  final VoidCallback? onJoin;
+
+  /// The signed-in user, used to tell "my part" from others'.
+  final String? currentUserId;
+
+  /// Tap handler when this is the viewer's own open part (start recording).
+  final VoidCallback? onRecord;
+
+  /// Tap handler for an invitable part (show its invite code).
+  final VoidCallback? onInvite;
+
   final bool playing;
 
   const VideoCell({
     super.key,
     required this.track,
-    this.onJoin,
+    this.currentUserId,
+    this.onRecord,
+    this.onInvite,
     this.playing = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (track.isOpen) {
-      return Pressable(
-        onTap: onJoin,
-        semanticLabel: '${track.part} 참여',
-        child: Container(
-          color: SL.dark1,
-          child: Stack(
-            children: [
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(SLIcons.circlePlus, size: 30, color: SL.textOnDarkDim),
-                    const SizedBox(height: 12),
-                    Text(
-                      'PENDING',
-                      style: SLType.mono(
-                        size: SLType.xs,
-                        color: SL.textOnDarkDim,
-                        letterSpacing: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 10,
-                bottom: 10,
-                child: SyncTag('${track.part} 참여 +', tone: SLTagTone.onDark),
-              ),
-            ],
-          ),
-        ),
+    if (track.isOpen) return _openCell();
+    return _readyCell();
+  }
+
+  /// An empty slot, rendered by who owns it.
+  Widget _openCell() {
+    final mine = track.isMine(currentUserId);
+
+    // My own part, not yet recorded → record CTA.
+    if (mine) {
+      return _slot(
+        onTap: onRecord,
+        semantic: '${track.partKo} 녹화',
+        icon: SLIcons.circlePlus,
+        title: '내 파트 · 녹화',
+        tag: '${track.partKo} · 내 파트',
       );
     }
 
-    // ready track — dark stage placeholder with instrument glyph
+    // Claimed by another member, awaiting their upload.
+    if (track.member != null) {
+      return _slot(
+        onTap: null,
+        semantic: '${track.partKo} 대기 중',
+        icon: SLIcons.userRound,
+        title: '대기 중',
+        tag: track.partKo,
+        memberInitial: track.member!.initial,
+      );
+    }
+
+    // Invitable part — show its own code so the leader can hand it out.
+    if (track.inviteCode != null) {
+      return _slot(
+        onTap: onInvite,
+        semantic: '${track.partKo} 초대 코드',
+        icon: SLIcons.userPlus,
+        title: track.inviteCode!,
+        titleMono: true,
+        tag: '${track.partKo} 초대',
+      );
+    }
+
+    // Legacy / unassigned slot.
+    return _slot(
+      onTap: onInvite,
+      semantic: track.partKo,
+      icon: SLIcons.circlePlus,
+      title: 'PENDING',
+      titleMono: true,
+      tag: track.partKo,
+    );
+  }
+
+  Widget _slot({
+    required VoidCallback? onTap,
+    required String semantic,
+    required IconData icon,
+    required String title,
+    required String tag,
+    bool titleMono = false,
+    String? memberInitial,
+  }) {
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: semantic,
+      child: Container(
+        color: SL.dark1,
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 28, color: SL.textOnDarkDim),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    style: titleMono
+                        ? SLType.mono(
+                            size: SLType.sm,
+                            weight: FontWeight.w700,
+                            color: SL.textOnDark,
+                            letterSpacing: 2)
+                        : SLType.sans(
+                            size: SLType.xs,
+                            weight: FontWeight.w600,
+                            color: SL.textOnDarkDim),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 10,
+              bottom: 10,
+              child: SyncTag(tag, tone: SLTagTone.onDark),
+            ),
+            if (memberInitial != null)
+              Positioned(
+                right: 10,
+                bottom: 12,
+                child: Text(
+                  memberInitial,
+                  style: SLType.sans(
+                      size: 13, weight: FontWeight.w700, color: SL.textOnDark),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A filled take — dark stage placeholder with instrument glyph. (Real video
+  /// rendering is layered on in the video-display change.)
+  Widget _readyCell() {
     return Container(
       decoration: const BoxDecoration(
         gradient: RadialGradient(
@@ -97,7 +188,7 @@ class VideoCell extends StatelessWidget {
           Positioned(
             left: 10,
             bottom: 10,
-            child: SyncTag(track.part, tone: SLTagTone.onDark),
+            child: SyncTag(track.partKo, tone: SLTagTone.onDark),
           ),
           if (track.member != null)
             Positioned(

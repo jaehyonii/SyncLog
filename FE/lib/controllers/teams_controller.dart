@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/entities/person.dart';
 import '../domain/entities/recorded_take.dart';
 import '../domain/entities/team.dart';
+import '../domain/entities/track.dart';
 import '../domain/repositories/team_repository.dart';
 import '../util/app_exception.dart';
 import '../util/async_value.dart';
@@ -83,13 +84,13 @@ class TeamsController extends ChangeNotifier {
     required String name,
     required String song,
     required int bpm,
-    required int memberCount,
+    required List<PartDraft> parts,
   }) async {
     final team = await _repo.createTeam(
       name: name,
       song: song,
       bpm: bpm,
-      memberCount: memberCount,
+      parts: parts,
       creator: currentUser,
     );
     await _refresh();

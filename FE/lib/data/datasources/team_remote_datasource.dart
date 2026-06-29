@@ -84,9 +84,23 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
 
   @override
   Future<Team> createTeam(Team team) async {
+    // The server rebuilds the roster/slots itself; it reads the role lineup from
+    // `parts` (the leader's claimed track is the one with a member already set).
+    final parts = [
+      for (final t in team.tracks)
+        {
+          'name': t.partKo,
+          'instrument': t.instrument,
+          'mine': t.member != null,
+        },
+    ];
+    final body = {
+      ...team.toJson(),
+      'parts': parts,
+    };
     final res = await _send(http.Request('POST', _uri('/api/v1/teams'))
       ..headers.addAll(_jsonHeaders)
-      ..body = jsonEncode(team.toJson()));
+      ..body = jsonEncode(body));
     return Team.fromJson((jsonDecode(res) as Map).cast<String, dynamic>());
   }
 
@@ -154,10 +168,19 @@ class HttpTeamRemoteDataSource implements TeamRemoteDataSource {
   }
 
   void _ensureOk(int status, String body) {
+    if (status >= 200 && status < 300) return;
     if (status == 404) throw const AppException.notFound();
-    if (status < 200 || status >= 300) {
-      throw AppException('서버 오류가 발생했어요. ($status)', body);
-    }
+    // NestJS sends `{ "message": "...", "statusCode": n }`; prefer that Korean
+    // message (e.g. "오늘은 이미 이 파트를 올렸어요") over a generic one.
+    String message = '서버 오류가 발생했어요. ($status)';
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['message'] != null) {
+        final m = decoded['message'];
+        message = m is List ? m.join('\n') : m.toString();
+      }
+    } catch (_) {/* non-JSON body; keep the generic message */}
+    throw AppException.server(status, message, body);
   }
 
   void dispose() => _client.close();

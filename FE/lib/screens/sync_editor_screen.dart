@@ -53,11 +53,14 @@ class _SyncEditorScreenState extends State<SyncEditorScreen> {
     final teams = context.read<TeamsController>();
     final messenger = ScaffoldMessenger.of(context);
 
-    // Resolve the target slot (falls back to the first open one).
+    // Resolve the target slot. Each member is fixed to their own part, so fall
+    // back to the user's claimed track rather than the first open slot.
     final team = teams.teamById(widget.args.teamId);
+    final me = teams.currentUser;
     var trackId = widget.args.trackId;
-    if (team != null && team.trackById(trackId) == null) {
-      trackId = team.firstOpenTrack?.id ?? trackId;
+    final target = team?.trackById(trackId);
+    if (team != null && (target == null || !target.isMine(me.id))) {
+      trackId = team.myTrack(me.id)?.id ?? trackId;
     }
 
     setState(() => _uploading = true);

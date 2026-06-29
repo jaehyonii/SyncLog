@@ -118,23 +118,39 @@ class TeamRepositoryImpl implements TeamRepository {
     required String name,
     required String song,
     required int bpm,
-    required int memberCount,
+    required List<PartDraft> parts,
     required Person creator,
   }) async {
     final teams = await _ensureLoaded();
     final id = 'team-${_now().microsecondsSinceEpoch}';
+
+    // Normalize the parts: keep named ones, ensure exactly one is the leader's.
+    var list = parts.where((p) => p.name.trim().isNotEmpty).toList();
+    if (list.isEmpty) {
+      list = [
+        for (var i = 0; i < 4; i++)
+          (
+            name: InstrumentPreset.lineup[i].partKo,
+            instrument: InstrumentPreset.lineup[i].glyph,
+            mine: i == 0,
+          ),
+      ];
+    }
+    final mineIdx = list.indexWhere((p) => p.mine);
+    final ownerIdx = mineIdx >= 0 ? mineIdx : 0;
+
     final slots = <Track>[
-      for (var i = 0; i < memberCount; i++)
-        () {
-          final preset = InstrumentPreset.lineup[i % InstrumentPreset.lineup.length];
-          return Track(
-            id: '$id-track-$i',
-            part: preset.part,
-            partKo: preset.partKo,
-            instrument: preset.glyph,
-            status: TrackStatus.open,
-          );
-        }(),
+      for (var i = 0; i < list.length; i++)
+        Track(
+          id: '$id-track-$i',
+          part: list[i].name.trim(),
+          partKo: list[i].name.trim(),
+          instrument: list[i].instrument,
+          status: TrackStatus.open,
+          // The leader claims their own part up front; others stay unclaimed
+          // until someone joins with that part's code (server-issued).
+          member: i == ownerIdx ? creator : null,
+        ),
     ];
 
     final team = Team(
@@ -200,6 +216,26 @@ class TeamRepositoryImpl implements TeamRepository {
     final tr = tracks.indexWhere((t) => t.id == trackId);
     if (tr == -1) throw const AppException.notFound();
 
+    // When online, let the server enforce its rules (own-part-only, one upload
+    // per day) BEFORE we optimistically update — so a rejection surfaces instead
+    // of faking success. A pure network failure still falls through to a local
+    // write so offline capture keeps working.
+    if (_remote != null) {
+      try {
+        await _remote.uploadTake(
+          teamId: teamId,
+          trackId: trackId,
+          take: take,
+          syncOffsetMs: syncOffsetMs,
+          member: member,
+          note: note,
+        );
+      } on AppException catch (e) {
+        if (e.isFromServer) rethrow;
+        // offline / unreachable — fall through to the local optimistic write
+      }
+    }
+
     tracks[tr] = tracks[tr].copyWith(
       status: TrackStatus.ready,
       member: member,
@@ -234,19 +270,6 @@ class TeamRepositoryImpl implements TeamRepository {
     next[ti] = updated;
     _cache = next;
     await _persist();
-
-    if (_remote != null) {
-      try {
-        await _remote.uploadTake(
-          teamId: teamId,
-          trackId: trackId,
-          take: take,
-          syncOffsetMs: syncOffsetMs,
-          member: member,
-          note: note,
-        );
-      } catch (_) {/* persisted locally; will reconcile when online */}
-    }
     return updated;
   }
 

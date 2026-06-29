@@ -32,7 +32,11 @@ void main() {
       name: '밤샘 재즈 트리오',
       song: 'Autumn Leaves',
       bpm: 120,
-      memberCount: 3,
+      parts: const [
+        (name: '드럼', instrument: 'drum', mine: true),
+        (name: '베이스', instrument: 'audio-lines', mine: false),
+        (name: '기타', instrument: 'guitar', mine: false),
+      ],
       creator: SeedData.me,
     );
 
@@ -80,7 +84,10 @@ void main() {
       name: '지속성 테스트',
       song: '곡',
       bpm: 90,
-      memberCount: 2,
+      parts: const [
+        (name: '보컬', instrument: 'audio-lines', mine: true),
+        (name: '기타', instrument: 'guitar', mine: false),
+      ],
       creator: SeedData.me,
     );
 
@@ -101,7 +108,10 @@ void main() {
       name: '앨리스 밴드',
       song: '곡',
       bpm: 90,
-      memberCount: 2,
+      parts: const [
+        (name: '보컬', instrument: 'audio-lines', mine: true),
+        (name: '기타', instrument: 'guitar', mine: false),
+      ],
       creator: SeedData.me,
     );
     expect((await repo.fetchTeams()).any((t) => t.name == '앨리스 밴드'), isTrue);

@@ -1,6 +1,7 @@
 import '../entities/person.dart';
 import '../entities/recorded_take.dart';
 import '../entities/team.dart';
+import '../entities/track.dart';
 
 /// The contract the app depends on for ensemble data. Implementations may be
 /// local-first (persisted on device), backed by the REST API, or both.
@@ -22,12 +23,13 @@ abstract class TeamRepository {
   /// (GET /api/v1/teams/{id}/stream)
   Future<Team> fetchTeam(String teamId);
 
-  /// Create a team and seed [memberCount] open instrument slots.
+  /// Create a team with the leader-defined [parts] (one is the creator's own;
+  /// the rest become invite slots with their own per-part code).
   Future<Team> createTeam({
     required String name,
     required String song,
     required int bpm,
-    required int memberCount,
+    required List<PartDraft> parts,
     required Person creator,
   });
 

@@ -30,7 +30,7 @@ class HomeScreen extends StatelessWidget {
         name: data.name,
         song: data.song,
         bpm: data.bpm,
-        memberCount: data.memberCount,
+        parts: data.parts,
       );
       messenger.showSnackBar(SnackBar(content: Text('‘${team.name}’ 팀을 만들었어요')));
     } catch (_) {

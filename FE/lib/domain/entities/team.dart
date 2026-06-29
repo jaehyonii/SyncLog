@@ -50,6 +50,15 @@ class Team {
     return null;
   }
 
+  /// The part owned by [userId] (their fixed slot), if any.
+  Track? myTrack(String? userId) {
+    if (userId == null) return null;
+    for (final t in tracks) {
+      if (t.member?.id == userId) return t;
+    }
+    return null;
+  }
+
   Track? trackById(String trackId) {
     for (final t in tracks) {
       if (t.id == trackId) return t;

@@ -33,6 +33,15 @@ export function fmtOffset(offsetMs: number): string {
   return `${sign}${(offsetMs / 1000).toFixed(2)}s`;
 }
 
+/** True if two instants fall on the same calendar day (server local time). */
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 /** The default instrument lineup used to seed a new team's open slots. */
 export const INSTRUMENT_LINEUP: ReadonlyArray<{
   part: string;
