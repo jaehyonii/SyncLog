@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { userToPerson } from '../teams/serializers';
 import {
   NotificationEntity,
@@ -61,6 +61,51 @@ export class NotificationsService {
       }),
     );
     await this.notifications.save(rows);
+  }
+
+  /**
+   * Deliver one notification straight to a single user (no actor-self filter).
+   * Used for system nudges like upload reminders, where the recipient is also
+   * recorded as the actor so the avatar/relation stays valid.
+   */
+  async remind(params: {
+    userId: string;
+    teamId: string | null;
+    teamName: string;
+    title: string;
+    body: string;
+  }): Promise<void> {
+    await this.notifications.save(
+      this.notifications.create({
+        userId: params.userId,
+        actorId: params.userId,
+        teamId: params.teamId,
+        teamName: params.teamName,
+        type: 'reminder',
+        title: params.title,
+        body: params.body,
+      }),
+    );
+  }
+
+  /**
+   * True if the user already has a reminder for [teamId] created since [since].
+   * Lets the scheduler avoid stacking duplicate nudges for the same part/day.
+   */
+  async hasReminderSince(
+    userId: string,
+    teamId: string | null,
+    since: Date,
+  ): Promise<boolean> {
+    const existing = await this.notifications.findOne({
+      where: {
+        userId,
+        teamId: teamId ?? undefined,
+        type: 'reminder',
+        createdAt: MoreThanOrEqual(since),
+      },
+    });
+    return existing != null;
   }
 
   /** The user's notifications, newest first (capped). */

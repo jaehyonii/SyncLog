@@ -140,8 +140,21 @@ All team/track/commit JSON exactly matches the client's `toJson`/`fromJson`.
 | `POST` | `/notifications/read` | Mark all read; returns the refreshed feed |
 
 A notification is fanned out to a team's other members when someone **joins**
-the team or **records** a take. Shape: `{ id, type ('join'|'take'), title, body,
-teamId, teamName, actor (Person), read, createdAt }`.
+the team or **records** a take. A scheduled **reminder** is sent to a part owner
+who hasn't uploaded their part that day. Shape: `{ id, type
+('join'|'take'|'reminder'), title, body, teamId, teamName, actor (Person), read,
+createdAt }`.
+
+### Scheduled reminders
+
+A cron job (`@nestjs/schedule`) runs daily at **17:00** and **23:00** server time
+and nudges every part owner whose part has no take today. The api container runs
+as `Asia/Seoul` (`TZ` in docker-compose), so these fire at KST — the same zone
+the one-upload-per-day boundary uses. Re-fires within an hour are de-duplicated.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/reminders/run` | Run the "haven't uploaded today" sweep now (returns `{ sent }`) |
 
 ## Configuration
 

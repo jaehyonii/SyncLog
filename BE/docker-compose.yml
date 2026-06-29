@@ -33,6 +33,9 @@ services:
     build: .
     environment:
       PORT: 3000
+      # Server timezone — scheduled reminders (17:00 / 23:00) and the
+      # one-upload-per-day boundary are evaluated in this zone.
+      TZ: ${TZ:-Asia/Seoul}
       # Base URL the API is reachable at — used to build video URLs
       # (videoUrl = ${PUBLIC_URL}/uploads/<file>). Override in .env with your
       # public address (e.g. https://kimsvr7.ddns.net) when serving via Caddy.

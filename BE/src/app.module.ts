@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { TeamsModule } from './teams/teams.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Drives the scheduled upload-reminder cron jobs (see RemindersService).
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -25,6 +29,7 @@ import { TeamsModule } from './teams/teams.module';
     AuthModule,
     TeamsModule,
     NotificationsModule,
+    RemindersModule,
   ],
 })
 export class AppModule {}

@@ -107,9 +107,11 @@ class _NotificationRow extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        item.type == NotificationType.join
-                            ? SLIcons.userPlus
-                            : SLIcons.gitCommit,
+                        switch (item.type) {
+                          NotificationType.join => SLIcons.userPlus,
+                          NotificationType.reminder => SLIcons.bell,
+                          NotificationType.take => SLIcons.gitCommit,
+                        },
                         size: 14,
                         color: SL.textSecondary,
                       ),

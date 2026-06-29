@@ -1,9 +1,23 @@
 import 'package:flutter/foundation.dart';
 import 'person.dart';
 
-/// What an activity notification is about: someone joined a team you're in, or
-/// someone stacked a new take onto a shared timeline.
-enum NotificationType { join, take }
+/// What an activity notification is about: someone joined a team you're in,
+/// someone stacked a new take onto a shared timeline, or a scheduled nudge that
+/// you haven't uploaded your part today.
+enum NotificationType {
+  join,
+  take,
+  reminder;
+
+  /// Tolerant parse — unknown/newer server types fall back to [take] instead of
+  /// throwing, so an older client still renders newer notifications.
+  static NotificationType parse(String? name) {
+    for (final t in NotificationType.values) {
+      if (t.name == name) return t;
+    }
+    return NotificationType.take;
+  }
+}
 
 /// One entry in the user's activity feed (the 알림 screen). Server-issued; the
 /// app is read-only over it (fetch + mark-all-read). Matches the backend's
@@ -38,7 +52,7 @@ class AppNotification {
 
   factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
         id: json['id'] as String,
-        type: NotificationType.values.byName(json['type'] as String? ?? 'take'),
+        type: NotificationType.parse(json['type'] as String?),
         title: json['title'] as String? ?? '',
         body: json['body'] as String? ?? '',
         teamId: json['teamId'] as String?,

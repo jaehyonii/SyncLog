@@ -10,13 +10,14 @@ import {
 import { UserEntity } from '../../users/user.entity';
 
 /** What a notification is about. Mirrors the client's `NotificationType`. */
-export type NotificationType = 'join' | 'take';
+export type NotificationType = 'join' | 'take' | 'reminder';
 
 /**
  * An activity notification delivered to one team member: someone joined a team
- * they're in (`join`), or someone stacked a new take onto a shared timeline
- * (`take`). Generated server-side in `TeamsService` and serialized to the client
- * by `notificationToJson`.
+ * they're in (`join`), someone stacked a new take onto a shared timeline
+ * (`take`), or a scheduled nudge that they haven't uploaded their part today
+ * (`reminder`). Generated server-side and serialized to the client by
+ * `notificationToJson`.
  */
 @Entity('notifications')
 export class NotificationEntity {
@@ -55,6 +56,8 @@ export class NotificationEntity {
   @Column({ default: false })
   read: boolean;
 
-  @CreateDateColumn()
+  // timestamptz so absolute-time window queries (e.g. reminder dedupe) compare
+  // correctly regardless of the server timezone.
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 }
