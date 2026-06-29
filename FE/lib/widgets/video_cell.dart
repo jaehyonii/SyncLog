@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../domain/entities/track.dart';
+import '../services/take_player_stub.dart'
+    if (dart.library.io) '../services/take_player_io.dart';
 import '../theme/icons.dart';
 import '../theme/tokens.dart';
 import 'pressable.dart';
@@ -38,7 +42,7 @@ class VideoCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (track.isOpen) return _openCell();
-    return _readyCell();
+    return _ReadyTile(track: track, playing: playing);
   }
 
   /// An empty slot, rendered by who owns it.
@@ -150,9 +154,98 @@ class VideoCell extends StatelessWidget {
     );
   }
 
-  /// A filled take — dark stage placeholder with instrument glyph. (Real video
-  /// rendering is layered on in the video-display change.)
-  Widget _readyCell() {
+}
+
+/// A filled take that renders the member's actual video — a remote `videoUrl`
+/// or a freshly-recorded local file. The clip is muted and looping here (the
+/// synced multitrack player carries the ensemble audio); it shows the first
+/// frame when idle and plays while the transport is playing. Falls back to the
+/// dark instrument placeholder when there's no playable source or it fails.
+class _ReadyTile extends StatefulWidget {
+  final Track track;
+  final bool playing;
+  const _ReadyTile({required this.track, required this.playing});
+
+  @override
+  State<_ReadyTile> createState() => _ReadyTileState();
+}
+
+class _ReadyTileState extends State<_ReadyTile> {
+  VideoPlayerController? _controller;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReadyTile old) {
+    super.didUpdateWidget(old);
+    // Source changed (e.g. the take was re-uploaded) → rebuild the controller.
+    if (old.track.videoUrl != widget.track.videoUrl ||
+        old.track.localPath != widget.track.localPath) {
+      _disposeController();
+      _failed = false;
+      _init();
+      return;
+    }
+    final c = _controller;
+    if (c != null && c.value.isInitialized) {
+      if (widget.playing && !c.value.isPlaying) c.play();
+      if (!widget.playing && c.value.isPlaying) c.pause();
+    }
+  }
+
+  Future<void> _init() async {
+    final t = widget.track;
+    final url = t.videoUrl;
+    try {
+      VideoPlayerController c;
+      if (url != null && url.startsWith('http')) {
+        c = VideoPlayerController.networkUrl(Uri.parse(url));
+      } else if (!kIsWeb && t.localPath != null) {
+        c = createTakeController(t.localPath!);
+      } else {
+        return; // no playable source → keep the placeholder
+      }
+      await c.initialize();
+      await c.setVolume(0); // visual only; audio comes from the synced player
+      await c.setLooping(true);
+      if (!mounted) {
+        await c.dispose();
+        return;
+      }
+      c.addListener(_tick);
+      setState(() => _controller = c);
+      if (widget.playing) await c.play();
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  void _tick() {
+    if (mounted) setState(() {});
+  }
+
+  void _disposeController() {
+    _controller?.removeListener(_tick);
+    _controller?.dispose();
+    _controller = null;
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _controller;
+    final ready = c != null && c.value.isInitialized && !_failed;
+    final track = widget.track;
     return Container(
       decoration: const BoxDecoration(
         gradient: RadialGradient(
@@ -163,15 +256,27 @@ class VideoCell extends StatelessWidget {
         ),
       ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          Center(
-            child: Icon(
-              SLIcons.instrument(track.instrument),
-              size: 56,
-              color: const Color(0xFFF4F3EF).withValues(alpha: 0.16),
+          if (ready)
+            FittedBox(
+              fit: BoxFit.cover,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: c.value.size.width,
+                height: c.value.size.height,
+                child: VideoPlayer(c),
+              ),
+            )
+          else
+            Center(
+              child: Icon(
+                SLIcons.instrument(track.instrument),
+                size: 56,
+                color: const Color(0xFFF4F3EF).withValues(alpha: 0.16),
+              ),
             ),
-          ),
-          if (playing)
+          if (widget.playing)
             Positioned(
               top: 10,
               right: 10,
