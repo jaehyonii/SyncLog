@@ -47,6 +47,35 @@ npm run start:dev             # watch mode → http://localhost:3000/api/v1
 npm run seed                  # optional: demo account + 3 example teams
 ```
 
+### Public HTTPS — Caddy reverse proxy
+
+To serve the API on a public domain with automatic TLS (real devices on any
+network, no cleartext issues), front it with Caddy. It obtains and renews a
+Let's Encrypt certificate for your domain and proxies to the `api` container.
+
+Prerequisites: a domain pointing at this host (e.g. `kimsvr7.ddns.net`) and
+ports **80 + 443** reachable from the internet (for the ACME challenge).
+
+```bash
+cd BE
+cp .env.example .env
+# in .env set:
+#   CADDY_DOMAIN=kimsvr7.ddns.net
+#   PUBLIC_URL=https://kimsvr7.ddns.net
+docker compose --profile proxy up --build
+# API → https://kimsvr7.ddns.net/api/v1
+```
+
+The Flutter client then points at it:
+
+```bash
+flutter run --dart-define=USE_REMOTE=true \
+            --dart-define=API_BASE_URL=https://kimsvr7.ddns.net
+```
+
+> `PUBLIC_URL` must match the public HTTPS address so generated `videoUrl`s are
+> reachable from clients. Certificates persist in the `caddy_data` volume.
+
 ## API
 
 Base path: `/api/v1`. All `teams` routes require `Authorization: Bearer <token>`.

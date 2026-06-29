@@ -1,6 +1,15 @@
 # One command to run the whole backend tier: PostgreSQL + the NestJS API.
 #   docker compose up --build
 # The API waits for the DB to be healthy, then auto-creates the schema (DB_SYNC).
+#
+# Public HTTPS (Caddy reverse proxy, automatic Let's Encrypt certs):
+#   1. Point a domain at this host (e.g. kimsvr7.ddns.net); open ports 80 + 443.
+#   2. Create .env (see .env.example) with:
+#        CADDY_DOMAIN=kimsvr7.ddns.net
+#        PUBLIC_URL=https://kimsvr7.ddns.net
+#   3. docker compose --profile proxy up --build
+#   Caddy terminates TLS on 443 and proxies to the api container; port 3000 no
+#   longer needs to be exposed publicly.
 services:
   db:
     image: postgres:16
@@ -22,14 +31,18 @@ services:
     build: .
     environment:
       PORT: 3000
-      PUBLIC_URL: http://localhost:3000
+      # Base URL the API is reachable at — used to build video URLs
+      # (videoUrl = ${PUBLIC_URL}/uploads/<file>). Override in .env with your
+      # public address (e.g. https://kimsvr7.ddns.net) when serving via Caddy.
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: synclog
       DB_PASSWORD: synclog
       DB_NAME: synclog
       DB_SYNC: "true"
-      JWT_SECRET: dev-secret-change-me
+      # CHANGE THIS in any real deployment (set JWT_SECRET in .env).
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_EXPIRES: 30d
     ports:
       - "3000:3000"
@@ -39,6 +52,27 @@ services:
     volumes:
       - uploads:/app/uploads
 
+  # HTTPS edge — only starts with the `proxy` profile:
+  #   docker compose --profile proxy up --build
+  # Reads CADDY_DOMAIN from .env and auto-provisions a Let's Encrypt cert.
+  caddy:
+    image: caddy:2
+    profiles: ["proxy"]
+    restart: unless-stopped
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # certificates — persisted across restarts
+      - caddy_config:/config
+    depends_on:
+      - api
+
 volumes:
   pgdata:
   uploads:
+  caddy_data:
+  caddy_config:

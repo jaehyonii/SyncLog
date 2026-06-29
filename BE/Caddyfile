@@ -1,0 +1,8 @@
+# Automatic HTTPS for SyncLog. Caddy obtains and renews a Let's Encrypt
+# certificate for $CADDY_DOMAIN, terminates TLS on 443, and reverse-proxies to
+# the api container over the internal Docker network. Set CADDY_DOMAIN in .env
+# (e.g. kimsvr7.ddns.net); ports 80 and 443 must be reachable from the internet
+# for the ACME challenge.
+{$CADDY_DOMAIN} {
+	reverse_proxy api:3000
+}
