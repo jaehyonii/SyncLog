@@ -59,14 +59,16 @@ ports **80 + 443** reachable from the internet (for the ACME challenge).
 ```bash
 cd BE
 cp .env.example .env
-# in .env set:
+# in .env set (the .env file is gitignored — secrets stay local):
 #   CADDY_DOMAIN=kimsvr7.ddns.net
 #   PUBLIC_URL=https://kimsvr7.ddns.net
-docker compose --profile proxy up --build
+#   JWT_SECRET=<long random string, e.g. `openssl rand -hex 48`>
+docker compose --profile proxy up -d --build
 # API → https://kimsvr7.ddns.net/api/v1
 ```
 
-The Flutter client then points at it:
+The Flutter client then points at it (works from any network — no `adb reverse`,
+and HTTPS means no cleartext-video workaround needed):
 
 ```bash
 flutter run --dart-define=USE_REMOTE=true \
@@ -74,7 +76,24 @@ flutter run --dart-define=USE_REMOTE=true \
 ```
 
 > `PUBLIC_URL` must match the public HTTPS address so generated `videoUrl`s are
-> reachable from clients. Certificates persist in the `caddy_data` volume.
+> reachable from clients. Certificates persist in the `caddy_data` volume and
+> renew automatically.
+
+**Hardening (defaults).** The published API (`3000`) and Postgres (`5432`) ports
+bind to `127.0.0.1` only, so neither is exposed to the internet — Caddy reaches
+the API over the internal Docker network, and `80`/`443` are the only public
+ports. `localhost` dev and `adb reverse` still work. To expose them on the LAN,
+set `API_BIND=0.0.0.0` / `DB_BIND=0.0.0.0` in `.env`. Always set a strong
+`JWT_SECRET` for any public deployment (rotating it invalidates existing tokens).
+
+**Operating the proxy stack** (always include `--profile proxy` so Caddy starts):
+
+```bash
+docker compose --profile proxy up -d --build   # start / apply changes
+docker compose --profile proxy ps              # status
+docker compose --profile proxy logs -f caddy   # cert + access logs
+docker compose --profile proxy down            # stop (keeps data + certs)
+```
 
 ## API
 
