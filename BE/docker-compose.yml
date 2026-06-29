@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: synclog
       POSTGRES_DB: synclog
     ports:
-      - "5432:5432"
+      - "${DB_BIND:-127.0.0.1}:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -26,6 +26,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    # Loopback-only by default so Postgres is never publicly exposed. Override
+    # with DB_BIND=0.0.0.0 in .env only if you need LAN access.
 
   api:
     build: .
@@ -44,8 +46,11 @@ services:
       # CHANGE THIS in any real deployment (set JWT_SECRET in .env).
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_EXPIRES: 30d
+    # Loopback-only by default: Caddy reaches the API over the internal Docker
+    # network, so :3000 need not be public. localhost dev and `adb reverse`
+    # still work. Set API_BIND=0.0.0.0 in .env to expose it on the LAN.
     ports:
-      - "3000:3000"
+      - "${API_BIND:-127.0.0.1}:3000:3000"
     depends_on:
       db:
         condition: service_healthy
