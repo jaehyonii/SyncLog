@@ -10,21 +10,21 @@ import '../widgets/ensemble_card.dart';
 import '../widgets/state_views.dart';
 import '../widgets/sync_app_bar.dart';
 
-/// 둘러보기 — the explore feed: every team's public daily ensemble video, newest
-/// first (independent of who you follow). Server-only; empty in local-first mode.
-class BrowseScreen extends StatefulWidget {
-  const BrowseScreen({super.key});
+/// 피드 — the SNS home feed: daily ensemble videos from teams whose members the
+/// user follows, newest first. Server-only; in local-first mode it's empty.
+class FeedScreen extends StatefulWidget {
+  const FeedScreen({super.key});
 
   @override
-  State<BrowseScreen> createState() => _BrowseScreenState();
+  State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _BrowseScreenState extends State<BrowseScreen> {
+class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SocialController>().loadExplore();
+      context.read<SocialController>().loadHomeFeed();
     });
   }
 
@@ -41,29 +41,29 @@ class _BrowseScreenState extends State<BrowseScreen> {
             SyncAppBar(
               left: SLIconButton(
                   icon: SLIcons.arrowLeft, label: '뒤로', onTap: () => context.pop()),
-              title: const Text('둘러보기'),
+              title: const Text('피드'),
             ),
             Expanded(
               child: !social.isRemote
                   ? const EmptyView(
                       icon: SLIcons.listMusic,
-                      title: '둘러볼 합주가 아직 없어요',
-                      message: '서버에 연결되면 다른 팀의\n합주 영상을 감상할 수 있어요.',
+                      title: '피드가 비어 있어요',
+                      message: '서버에 연결되면 팔로우한 사람들의\n합주 영상을 여기서 볼 수 있어요.',
                     )
-                  : social.exploreFeed.view(
-                      onRetry: social.loadExplore,
+                  : social.homeFeed.view(
+                      onRetry: social.loadHomeFeed,
                       loading: () => const LoadingView(),
                       error: (message, retry) =>
                           ErrorView(message: message, onRetry: retry),
                       data: (feed) => feed.isEmpty
                           ? const EmptyView(
-                              icon: SLIcons.listMusic,
-                              title: '둘러볼 합주가 아직 없어요',
-                              message: '다른 팀이 합주 영상을 올리면\n여기에서 감상할 수 있어요.',
+                              icon: SLIcons.userPlus,
+                              title: '아직 피드가 조용해요',
+                              message: '다른 사람을 팔로우하면\n그 팀의 합주 영상이 올라와요.',
                             )
                           : RefreshIndicator(
                               color: SL.ink,
-                              onRefresh: social.loadExplore,
+                              onRefresh: social.loadHomeFeed,
                               child: ListView.separated(
                                 padding: const EdgeInsets.all(SL.gutter),
                                 itemCount: feed.length,

@@ -111,6 +111,8 @@ class _NotificationRow extends StatelessWidget {
                           NotificationType.join => SLIcons.userPlus,
                           NotificationType.reminder => SLIcons.bell,
                           NotificationType.take => SLIcons.gitCommit,
+                          NotificationType.follow => SLIcons.userPlus,
+                          NotificationType.ensemble => SLIcons.disc3,
                         },
                         size: 14,
                         color: SL.textSecondary,

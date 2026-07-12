@@ -5,10 +5,12 @@ import 'app.dart';
 import 'config.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/notifications_controller.dart';
+import 'controllers/social_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'data/datasources/auth_local_datasource.dart';
 import 'data/datasources/auth_remote_datasource.dart';
 import 'data/datasources/notifications_remote_datasource.dart';
+import 'data/datasources/social_remote_datasource.dart';
 import 'data/datasources/team_local_datasource.dart';
 import 'data/datasources/team_remote_datasource.dart';
 import 'data/repositories/team_repository_impl.dart';
@@ -61,9 +63,20 @@ Future<void> main() async {
         : null,
   )..load();
 
+  // The SNS feed/follow graph is likewise server-only.
+  final socialController = SocialController(
+    remote: config.useRemote
+        ? HttpSocialRemoteDataSource(
+            baseUrl: config.apiBaseUrl,
+            tokenProvider: () => authController.token,
+          )
+        : null,
+  )..loadHomeFeed();
+
   runApp(SyncLogApp(
     authController: authController,
     teamsController: teamsController,
     notificationsController: notificationsController,
+    socialController: socialController,
   ));
 }
