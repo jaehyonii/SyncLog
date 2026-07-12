@@ -14,6 +14,7 @@ unchanged.
 | ORM | TypeORM (auto-sync schema in dev) |
 | Auth | JWT (Bearer), bcrypt password hashes |
 | Uploads | Multer → local `uploads/`, served at `/uploads/*` |
+| Video | ffmpeg (installed in the Docker image) — daily ensemble compositing |
 
 ## Run it
 
@@ -141,8 +142,34 @@ All team/track/commit JSON exactly matches the client's `toJson`/`fromJson`.
 
 A notification is fanned out to a team's other members when someone **joins**
 the team or **records** a take. A scheduled **reminder** is sent to a part owner
-who hasn't uploaded their part that day. Shape: `{ id, type
-('join'|'take'|'reminder'), title, body, teamId, teamName, actor (Person), read,
+who hasn't uploaded their part that day. A **follow** notification is sent when
+someone follows you, and an **ensemble** notification when a team's daily
+ensemble video finishes rendering. Shape: `{ id, type
+('join'|'take'|'reminder'|'follow'|'ensemble'), title, body, teamId, teamName,
+actor (Person), read, createdAt }`.
+
+### Ensembles (daily合주 video) & SNS feed
+
+Each team's day of part takes is composited into **one ensemble video** (a real
+MP4: grid layout + mixed audio) by `ffmpeg`. A cron job at **23:00** server time
+(Asia/Seoul) renders every team that has a take that day; rendering is
+idempotent per `(team, day)`. The result is a public **ensemble** post that
+drives the SNS feed. Users **follow** other users; the home feed shows ensembles
+from teams whose members you follow, and explore shows all public ensembles.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET`  | `/ensembles/explore` | All public daily ensembles, newest first |
+| `POST` | `/ensembles/run` | Render today's ensembles now (`?teamId=` for one); returns `{ rendered }` |
+| `GET`  | `/feed` | Home feed — ensembles from teams whose members you follow |
+| `POST` | `/users/:id/follow` | Follow a user → `{ isFollowing, followerCount }` |
+| `DELETE` | `/users/:id/follow` | Unfollow → `{ isFollowing, followerCount }` |
+| `GET`  | `/users/:id` | Public profile: Person + `followerCount`, `followingCount`, `isFollowing`, `ensembles` |
+| `GET`  | `/users/:id/followers` | Person[] |
+| `GET`  | `/users/:id/following` | Person[] |
+
+`Ensemble` shape: `{ id, teamId, teamName, song, coverColor, day, status
+('rendering'|'ready'|'failed'), videoUrl, thumbnailUrl, members (Person[]),
 createdAt }`.
 
 ### Scheduled reminders
@@ -164,9 +191,10 @@ in production).
 
 ## Database
 
-The schema (5 tables: `users`, `teams`, `team_members`, `tracks`, `commits`) is
-documented in **[`SCHEMA.md`](SCHEMA.md)**. Dev auto-creates it from the
-entities; for production use migrations:
+The core schema (`users`, `teams`, `team_members`, `tracks`, `commits`) is
+documented in **[`SCHEMA.md`](SCHEMA.md)**; later features add `notifications`,
+`follows`, and `ensembles`. Dev auto-creates all of them from the entities; for
+production use migrations:
 
 ```bash
 DB_SYNC=false npm run migration:generate -- src/database/migrations/Init
