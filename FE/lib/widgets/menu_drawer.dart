@@ -122,6 +122,11 @@ class MenuDrawer extends StatelessWidget {
                     ),
                     _row(
                       context,
+                      const _MenuItem(SLIcons.disc3, '피드', sub: '팔로우한 사람들의 합주 영상'),
+                      onTap: () => _go(context, '/feed'),
+                    ),
+                    _row(
+                      context,
                       const _MenuItem(SLIcons.listMusic, '둘러보기', sub: '다른 팀의 합주 영상'),
                       onTap: () => _go(context, '/browse'),
                     ),

@@ -3,8 +3,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { EnsemblesModule } from './ensembles/ensembles.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { SocialModule } from './social/social.module';
 import { TeamsModule } from './teams/teams.module';
 
 @Module({
@@ -30,6 +32,9 @@ import { TeamsModule } from './teams/teams.module';
     TeamsModule,
     NotificationsModule,
     RemindersModule,
+    // Daily ensemble render (cron + ffmpeg) and the SNS feed/follow graph.
+    EnsemblesModule,
+    SocialModule,
   ],
 })
 export class AppModule {}

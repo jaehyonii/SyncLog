@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'controllers/auth_controller.dart';
 import 'controllers/notifications_controller.dart';
+import 'controllers/social_controller.dart';
 import 'controllers/teams_controller.dart';
 import 'router.dart';
 import 'services/permission_service.dart';
@@ -17,12 +18,14 @@ class SyncLogApp extends StatefulWidget {
   final AuthController authController;
   final TeamsController teamsController;
   final NotificationsController notificationsController;
+  final SocialController socialController;
 
   const SyncLogApp({
     super.key,
     required this.authController,
     required this.teamsController,
     required this.notificationsController,
+    required this.socialController,
   });
 
   @override
@@ -49,6 +52,7 @@ class _SyncLogAppState extends State<SyncLogApp> {
     if (user == null) {
       _lastUserId = null; // signed out
       widget.notificationsController.clear();
+      widget.socialController.clear();
       return;
     }
     if (user.id == _lastUserId) {
@@ -62,6 +66,7 @@ class _SyncLogAppState extends State<SyncLogApp> {
     widget.teamsController.setCurrentUser(user);
     widget.teamsController.load();
     widget.notificationsController.load();
+    widget.socialController.loadHomeFeed();
   }
 
   @override
@@ -84,6 +89,8 @@ class _SyncLogAppState extends State<SyncLogApp> {
         ChangeNotifierProvider<TeamsController>.value(value: widget.teamsController),
         ChangeNotifierProvider<NotificationsController>.value(
             value: widget.notificationsController),
+        ChangeNotifierProvider<SocialController>.value(
+            value: widget.socialController),
         Provider<PermissionService>.value(value: PermissionService.platform()),
       ],
       child: MaterialApp.router(

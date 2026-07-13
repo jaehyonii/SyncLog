@@ -7,11 +7,14 @@ import 'controllers/teams_controller.dart';
 import 'domain/entities/recorded_take.dart';
 import 'screens/archive_screen.dart';
 import 'screens/browse_screen.dart';
+import 'screens/feed_screen.dart';
+import 'screens/follow_list_screen.dart';
 import 'screens/help_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/not_found_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/user_profile_screen.dart';
 import 'screens/recording_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/signup_screen.dart';
@@ -62,8 +65,26 @@ GoRouter buildRouter(AuthController auth) {
         path: '/',
         builder: (context, state) => const HomeScreen(),
         routes: [
+          GoRoute(path: 'feed', builder: (context, state) => const FeedScreen()),
           GoRoute(path: 'browse', builder: (context, state) => const BrowseScreen()),
           GoRoute(path: 'archive', builder: (context, state) => const ArchiveScreen()),
+          GoRoute(
+            path: 'users/:id',
+            builder: (context, state) =>
+                UserProfileScreen(userId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'followers',
+                builder: (context, state) => FollowListScreen(
+                    userId: state.pathParameters['id']!, showFollowers: true),
+              ),
+              GoRoute(
+                path: 'following',
+                builder: (context, state) => FollowListScreen(
+                    userId: state.pathParameters['id']!, showFollowers: false),
+              ),
+            ],
+          ),
           GoRoute(
               path: 'notifications',
               builder: (context, state) => const NotificationsScreen()),

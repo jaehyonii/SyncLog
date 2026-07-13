@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'person.dart';
 
 /// What an activity notification is about: someone joined a team you're in,
-/// someone stacked a new take onto a shared timeline, or a scheduled nudge that
-/// you haven't uploaded your part today.
+/// someone stacked a new take onto a shared timeline, a scheduled nudge that you
+/// haven't uploaded your part today, someone started following you, or a team's
+/// daily ensemble video finished rendering.
 enum NotificationType {
   join,
   take,
-  reminder;
+  reminder,
+  follow,
+  ensemble;
 
   /// Tolerant parse — unknown/newer server types fall back to [take] instead of
   /// throwing, so an older client still renders newer notifications.

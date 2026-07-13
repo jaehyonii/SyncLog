@@ -10,7 +10,12 @@ import {
 import { UserEntity } from '../../users/user.entity';
 
 /** What a notification is about. Mirrors the client's `NotificationType`. */
-export type NotificationType = 'join' | 'take' | 'reminder';
+export type NotificationType =
+  | 'join'
+  | 'take'
+  | 'reminder'
+  | 'follow'
+  | 'ensemble';
 
 /**
  * An activity notification delivered to one team member: someone joined a team
