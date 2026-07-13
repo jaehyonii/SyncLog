@@ -19,10 +19,15 @@ export interface RenderResult {
 
 /** Square output canvas (px). Cells subdivide this. */
 const CANVAS = 720;
-/** Hard caps so one bad/long render can't hog the box. */
-const MAX_DURATION_S = 180;
+/** Hard caps so one bad/long render can't hog the box. Full songs run 3-4 min+,
+ * so allow up to 10 min; a runaway input still can't render forever. */
+const MAX_DURATION_S = 600;
 const FALLBACK_DURATION_S = 15;
-const RENDER_TIMEOUT_MS = 5 * 60 * 1000;
+/** Timeout scales with the cap — a 10-min render on the old CPU can take a while. */
+const RENDER_TIMEOUT_MS = 15 * 60 * 1000;
+/** ffmpeg runs at this niceness so live API requests always win CPU contention
+ * during the (CPU-bound) render — no GPU/worker split needed at this scale. */
+const FFMPEG_NICE = 15;
 
 /**
  * Composites a day's part takes into ONE ensemble MP4 (grid layout + mixed
@@ -165,13 +170,12 @@ export class EnsembleRenderService {
       outPath,
     );
 
-    await this.run('ffmpeg', args, RENDER_TIMEOUT_MS);
+    await this.runFfmpeg(args, RENDER_TIMEOUT_MS);
 
     // thumbnail (first frame of the composited video)
     const thumbName = `${randomUUID()}.jpg`;
     const thumbPath = join(UPLOAD_DIR, thumbName);
-    await this.run(
-      'ffmpeg',
+    await this.runFfmpeg(
       ['-y', '-i', outPath, '-frames:v', '1', '-q:v', '3', thumbPath],
       60 * 1000,
     );
@@ -210,6 +214,19 @@ export class EnsembleRenderService {
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * Run ffmpeg at a low CPU priority (`nice`) so live API requests always win
+   * contention during a render. `nice` execs into ffmpeg, so the spawned PID is
+   * ffmpeg itself — the timeout SIGKILL still targets it directly.
+   */
+  private runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
+    return this.run(
+      'nice',
+      ['-n', String(FFMPEG_NICE), 'ffmpeg', ...args],
+      timeoutMs,
+    );
   }
 
   /** Run a process to completion; reject on non-zero exit or timeout (SIGKILL). */
