@@ -12,6 +12,7 @@
 #   longer needs to be exposed publicly.
 services:
   db:
+    container_name: synclog-db-1
     image: postgres:16
     environment:
       POSTGRES_USER: synclog
@@ -30,6 +31,7 @@ services:
     # with DB_BIND=0.0.0.0 in .env only if you need LAN access.
 
   api:
+    container_name: synclog-api-1
     build: .
     environment:
       PORT: 3000
@@ -64,6 +66,9 @@ services:
   #   docker compose --profile proxy up --build
   # Reads CADDY_DOMAIN from .env and auto-provisions a Let's Encrypt cert.
   caddy:
+    # Shared HTTPS edge (also fronts other sites, e.g. sixsound) — keep a
+    # project-neutral name rather than a synclog-specific one.
+    container_name: caddy-1
     image: caddy:2
     profiles: ["proxy"]
     restart: unless-stopped
@@ -79,8 +84,15 @@ services:
     depends_on:
       - api
 
+# Explicit volume names (override the default `be_` project prefix). db/uploads
+# are SyncLog-specific; caddy_data/config are neutral since Caddy is a shared
+# edge (its certs cover other sites too).
 volumes:
   pgdata:
+    name: synclog_pgdata
   uploads:
+    name: synclog_uploads
   caddy_data:
+    name: caddy_data
   caddy_config:
+    name: caddy_config
